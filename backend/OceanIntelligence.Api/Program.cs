@@ -5,6 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
+// Bind the merged appsettings and user-secrets section to a typed options object.
 builder.Services
     .AddOptions<GlobalFishingWatchOptions>()
     .Bind(builder.Configuration.GetSection(
@@ -18,8 +19,10 @@ builder.Services
     .Validate(
         options => !string.IsNullOrWhiteSpace(options.AccessToken),
         "GlobalFishingWatch:AccessToken is required.")
+    // Fail during startup instead of during the first external API request.
     .ValidateOnStart();
 
+// Register a managed HttpClient and allow the GFW client to be constructor-injected.
 builder.Services.AddHttpClient<GlobalFishingWatchClient>();
 
 var app = builder.Build();
