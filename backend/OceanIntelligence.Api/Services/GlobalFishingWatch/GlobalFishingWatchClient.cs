@@ -75,7 +75,10 @@ public sealed class GlobalFishingWatchClient
                 cancellationToken);
 
         // Convert non-success HTTP responses into exceptions.
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new GlobalFishingWatchException(response.StatusCode);
+        }
 
         GfwReportResponse report =
             await response.Content.ReadFromJsonAsync<GfwReportResponse>(

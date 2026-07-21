@@ -20,7 +20,7 @@ public sealed class VesselTrafficController : ControllerBase
 
     [HttpGet]
     // ActionResult lets this endpoint return either vessel data or an HTTP error.
-    public async Task<ActionResult<IReadOnlyList<VesselTrafficVessel>>> Get(
+    public async Task<ActionResult<VesselTrafficResponse>> Get(
         // Builds the request model from URL query-string values.
         [FromQuery] VesselTrafficRequest request,
         // Stops the GFW request if the caller disconnects or cancels.
@@ -61,7 +61,14 @@ public sealed class VesselTrafficController : ControllerBase
             })
             .ToList();
 
-        return Ok(result);
+        var response = new VesselTrafficResponse
+        {
+            Query = request,
+            Count = result.Count,
+            Vessels = result
+        };
+
+        return Ok(response);
     }
 
     // These checks compare multiple fields, so they belong together here.

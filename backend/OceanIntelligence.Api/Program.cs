@@ -1,9 +1,13 @@
 using OceanIntelligence.Api.Services.GlobalFishingWatch;
+using OceanIntelligence.Api.ErrorHandling;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+// ProblemDetails gives API errors a consistent, standard JSON shape.
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalFishingWatchExceptionHandler>();
 
 // Bind the merged appsettings and user-secrets section to a typed options object.
 builder.Services
@@ -26,6 +30,8 @@ builder.Services
 builder.Services.AddHttpClient<GlobalFishingWatchClient>();
 
 var app = builder.Build();
+// Routes recognized exceptions through our registered handlers.
+app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {

@@ -2,4 +2,7 @@
   <Folder Name="/backend/">
     <Project Path="backend/OceanIntelligence.Api/OceanIntelligence.Api.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OceanIntelligence.Api.Tests/OceanIntelligence.Api.Tests.csproj" />
+  </Folder>
 </Solution>

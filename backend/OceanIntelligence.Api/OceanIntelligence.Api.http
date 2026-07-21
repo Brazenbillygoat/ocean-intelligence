@@ -1,6 +1,10 @@
 @OceanIntelligence.Api_HostAddress = http://localhost:5131
 
-GET {{OceanIntelligence.Api_HostAddress}}/weatherforecast/
+GET {{OceanIntelligence.Api_HostAddress}}/api/vessel-traffic
+    ?west=-71.20
+    &south=42.20
+    &east=-70.70
+    &north=42.60
+    &startDate=2026-06-01
+    &endDate=2026-06-08
 Accept: application/json
-
-###
