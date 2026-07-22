@@ -1,0 +1,167 @@
+#root {
+  min-height: 100vh;
+}
+
+main {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 3rem 0;
+}
+
+header {
+  margin-bottom: 2rem;
+}
+
+header h1 {
+  margin: 0;
+  color: #ecfbff;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  line-height: 1.1;
+}
+
+header p {
+  max-width: 680px;
+  margin: 0.75rem 0 0;
+  color: #92aeb8;
+  font-size: 1.05rem;
+}
+
+section {
+  margin-top: 2rem;
+}
+
+section > h2 {
+  margin: 0 0 1rem;
+  color: #d9f5fb;
+}
+
+form {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  border: 1px solid #28434d;
+  border-radius: 0.75rem;
+  background: #0c2029;
+  box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 25%);
+}
+
+fieldset {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid #29434d;
+  border-radius: 0.5rem;
+}
+
+fieldset:last-of-type {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+fieldset:disabled {
+  opacity: 0.65;
+}
+
+legend {
+  padding: 0 0.5rem;
+  color: #9edce8;
+  font-weight: 700;
+}
+
+label {
+  display: grid;
+  gap: 0.4rem;
+  color: #b6ccd4;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+input {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #3c5964;
+  border-radius: 0.4rem;
+  color: #edf9fc;
+  background: #07171e;
+}
+
+input:focus {
+  border-color: #25b6ce;
+  outline: 3px solid rgb(37 182 206 / 20%);
+}
+
+form button {
+  justify-self: start;
+  padding: 0.7rem 1.2rem;
+  border: 1px solid #28bfd8;
+  border-radius: 0.45rem;
+  color: #031217;
+  background: #39c6dd;
+  font-weight: 750;
+}
+
+form button:hover:not(:disabled) {
+  background: #69d9ea;
+}
+
+form button:focus-visible {
+  outline: 3px solid rgb(57 198 221 / 30%);
+  outline-offset: 2px;
+}
+
+form button:disabled {
+  opacity: 0.65;
+}
+
+[role="alert"] {
+  padding: 1rem;
+  border: 1px solid #b84c56;
+  border-radius: 0.5rem;
+  color: #ffc9ce;
+  background: #35161b;
+}
+
+section ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+section li {
+  padding: 1.25rem;
+  border: 1px solid #253f49;
+  border-radius: 0.65rem;
+  background: #0c2029;
+  box-shadow: 0 0.75rem 1.5rem rgb(0 0 0 / 18%);
+}
+
+section li h3 {
+  margin: 0 0 0.65rem;
+  color: #79dced;
+}
+
+section li p {
+  margin: 0.25rem 0;
+  color: #a7bec7;
+}
+
+@media (max-width: 760px) {
+  main {
+    width: min(100% - 1rem, 1120px);
+    padding: 1.5rem 0;
+  }
+
+  form {
+    padding: 1rem;
+  }
+
+  fieldset,
+  fieldset:last-of-type,
+  section ul {
+    grid-template-columns: 1fr;
+  }
+}

@@ -30,7 +30,12 @@ public sealed class VesselTrafficController : ControllerBase
 
         if (validationError is not null)
         {
-            return BadRequest(new { error = validationError });
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Invalid vessel traffic query.",
+                Detail = validationError,
+                Status = StatusCodes.Status400BadRequest
+            });
         }
 
         // await releases the request thread while GFW does the network work.
