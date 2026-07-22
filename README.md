@@ -1,65 +1,83 @@
 # Ocean Intelligence
 
-Ocean Intelligence is an ASP.NET Core API for querying vessel presence data from Global Fishing Watch. The current endpoint accepts a geographic bounding box and date range, requests AIS vessel-presence data, and returns a simplified response owned by this application.
+Ocean Intelligence is a full-stack vessel research application built with ASP.NET Core, React, and TypeScript. It searches Global Fishing Watch data for vessels observed within a geographic area and date range, then provides a deeper identity and registry view for a selected vessel.
 
-The repository currently contains the backend API and its automated tests. A frontend and database have not been added yet.
+The application works with historical AIS observations. It does not provide live vessel positions, continuous tracking, or proof that a vessel remained inside an area for an entire reported period.
+
+## Features
+
+- Search a geographic bounding box and date range for observed vessel traffic.
+- View vessel identity, classification, flag, and sampled AIS presence hours.
+- Select a result to load additional AIS identity and public registry records.
+- Review vessel and gear classifications with their source and effective years.
+- Preserve useful area-search values when detailed records contain empty fields.
+- Cache vessel details in browser state to avoid repeated requests during a session.
+- Display Global Fishing Watch attribution and relevant maritime-data caveats.
+- Return consistent API errors using ASP.NET Core Problem Details.
 
 ## Current stack
 
-- .NET 10
-- ASP.NET Core controller-based Web API
+- .NET 10 and ASP.NET Core controller-based Web API
+- React 19, TypeScript, and Vite
+- Native `fetch` and local React state
 - xUnit
 - Global Fishing Watch API v3
+
+The project intentionally does not yet include authentication, a database, routing, Redux, Axios, a component library, or a map library.
 
 ## Repository structure
 
 ```text
 ocean-intelligence/
-├── backend/
-│   └── OceanIntelligence.Api/
-│       ├── Controllers/                 HTTP endpoints
-│       ├── ErrorHandling/               Centralized external-service errors
-│       ├── Models/                      Public request and response models
-│       └── Services/GlobalFishingWatch/ GFW client and upstream models
-├── tests/
-│   └── OceanIntelligence.Api.Tests/     Controller, mapping, and error tests
-└── OceanIntelligence.slnx
+|-- backend/
+|   `-- OceanIntelligence.Api/
+|       |-- Controllers/                 HTTP endpoints
+|       |-- ErrorHandling/               External-service error mapping
+|       |-- Models/                      Public API contracts
+|       `-- Services/GlobalFishingWatch/ GFW client and upstream models
+|-- frontend/
+|   `-- src/
+|       |-- api/                         Typed browser API clients
+|       |-- components/                  Search, results, and detail UI
+|       `-- types/                       Frontend API contracts
+|-- tests/
+|   `-- OceanIntelligence.Api.Tests/     Controller, client, mapping, and error tests
+`-- OceanIntelligence.slnx
 ```
 
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- Node.js `20.19+` or `22.12+`
+- npm
 - A [Global Fishing Watch](https://globalfishingwatch.org/our-apis/documentation) account and API access token
 - Git
 
-Verify the SDK:
+Verify the required runtimes:
 
 ```powershell
 dotnet --version
+node --version
+npm --version
 ```
 
 ## Local setup
 
-Clone the repository and enter it:
+Clone the repository:
 
 ```powershell
 git clone https://github.com/Brazenbillygoat/ocean-intelligence.git
 cd ocean-intelligence
 ```
 
-Restore dependencies:
+Restore backend and frontend dependencies:
 
 ```powershell
 dotnet restore OceanIntelligence.slnx
+npm install --prefix frontend
 ```
 
-Initialize user secrets for the API project if needed:
-
-```powershell
-dotnet user-secrets init --project backend/OceanIntelligence.Api
-```
-
-Copy a valid GFW token, then store it without placing it in source control:
+Store the GFW access token with .NET user secrets. Do not place the token in `appsettings.json`, an environment file, source code, or a Git commit.
 
 ```powershell
 $gfwToken = (Get-Clipboard).Trim()
@@ -69,29 +87,32 @@ Remove-Variable gfwToken
 
 The non-sensitive GFW base URL is configured in `backend/OceanIntelligence.Api/appsettings.json`.
 
-## Build and run
+## Run locally
 
-Build the full solution:
-
-```powershell
-dotnet build OceanIntelligence.slnx
-```
-
-Run the API with its HTTP development profile:
+Start the API from the repository root:
 
 ```powershell
 dotnet run --project backend/OceanIntelligence.Api --launch-profile http
 ```
 
-The API listens at `http://localhost:5131` by default. The launch profile does not open a browser.
+The API listens at `http://localhost:5131` by default. Its development launch profile does not open a browser.
 
-## Vessel traffic endpoint
+In a second terminal, start the frontend:
+
+```powershell
+cd frontend
+npm run dev
+```
+
+The Vite development server proxies relative `/api` requests to the local ASP.NET Core API.
+
+## API endpoints
+
+### Search vessel traffic
 
 ```http
 GET /api/vessel-traffic
 ```
-
-Query parameters:
 
 | Parameter | Meaning |
 | --- | --- |
@@ -99,37 +120,53 @@ Query parameters:
 | `south` | Southern latitude from -90 to 90 |
 | `east` | Eastern longitude from -180 to 180 |
 | `north` | Northern latitude from -90 to 90 |
-| `startDate` | Start of the search in `YYYY-MM-DD` format |
-| `endDate` | End of the search in `YYYY-MM-DD` format |
+| `startDate` | Start date in `YYYY-MM-DD` format |
+| `endDate` | End date in `YYYY-MM-DD` format |
 
-The bounding box must have west less than east and south less than north. GFW limits a report to 366 days.
+The bounding box must have west less than east and south less than north. A report cannot span more than 366 days.
 
 Example request from PowerShell:
 
 ```powershell
 $uri = "http://localhost:5131/api/vessel-traffic?west=-71.20&south=42.20&east=-70.70&north=42.60&startDate=2026-06-01&endDate=2026-06-08"
 $vesselTraffic = Invoke-RestMethod -Uri $uri
-```
-
-Inspect the result:
-
-```powershell
-$vesselTraffic.count
-$vesselTraffic.query
 $vesselTraffic.vessels | Select-Object -First 10
 ```
 
-The response contains:
+The response contains the accepted query, result count, and vessels with identity, classification, observation boundaries, and sampled AIS presence hours.
 
-- The original query
-- The number of matching vessels
-- A vessel list with identity, classification, entry and exit observations, and AIS presence hours
+### Get vessel details
 
-AIS data has coverage and reporting limitations. Entry and exit values are based on sampled AIS observations, not exact border-crossing times.
+```http
+GET /api/vessels/{vesselId}
+```
+
+This endpoint performs a lighter Global Fishing Watch identity lookup for one selected vessel. The response includes:
+
+- AIS identity records and observation periods
+- Public registry records and vessel specifications
+- Combined vessel and gear classifications
+- Dataset and provider information
+- Attribution and data caveats
+
+The application deliberately does not request detailed tracks for every search result.
+
+## Data limitations
+
+Global Fishing Watch data and AIS transmissions require careful interpretation:
+
+- Area-search results describe historical observed presence, not live location.
+- Presence hours come from sampled AIS activity and do not prove continuous transmission.
+- Entry and exit observations are not exact geographic border-crossing times.
+- AIS identity values are self reported and may be incomplete, outdated, or incorrect.
+- Multiple identities may describe the same physical vessel.
+- Registry records can conflict or change over time.
+- Identity and registry observation dates are not vessel positions.
+- Vessel and gear classifications can change as source data and models are revised.
 
 ## Error responses
 
-Known GFW failures are translated into consistent API responses:
+Known Global Fishing Watch failures are translated into consistent API responses:
 
 | Condition | API status |
 | --- | --- |
@@ -139,23 +176,28 @@ Known GFW failures are translated into consistent API responses:
 
 Errors use the standard ASP.NET Core `ProblemDetails` JSON shape.
 
-## Tests
+## Verification
 
-Run all tests:
+Run frontend checks:
+
+```powershell
+cd frontend
+npm run lint
+npm run build
+```
+
+Run backend tests and formatting verification from the repository root:
 
 ```powershell
 dotnet test OceanIntelligence.slnx
+dotnet format OceanIntelligence.slnx --verify-no-changes --no-restore
 ```
 
-The current suite covers:
+Backend tests use in-memory HTTP handlers and do not call the live Global Fishing Watch API.
 
-- Coordinate and date validation
-- GFW JSON deserialization
-- Translation from GFW models into public API models
-- Response-envelope construction
-- External-service error mapping
+## Security
 
-Tests use an in-memory HTTP handler and do not call the live GFW API.
+The Global Fishing Watch access token is required only by the backend and should be stored with .NET user secrets during local development. If a token is ever committed, revoke it immediately and remove it from Git history before publishing the repository.
 
 ## Data source and attribution
 
