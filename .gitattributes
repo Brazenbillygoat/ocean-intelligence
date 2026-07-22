@@ -1,0 +1,6 @@
+# Normalize text files to LF so diffs remain consistent across operating systems.
+* text=auto eol=lf
+
+# Windows command scripts require the traditional Windows line ending.
+*.bat text eol=crlf
+*.cmd text eol=crlf
