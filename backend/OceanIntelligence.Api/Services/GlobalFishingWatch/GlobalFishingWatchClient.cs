@@ -25,8 +25,7 @@ public sealed class GlobalFishingWatchClient
             new AuthenticationHeaderValue("Bearer", settings.AccessToken);
     }
 
-    internal async Task<IReadOnlyList<GfwVesselPresence>>
-        GetVesselPresenceAsync(
+    internal async Task<IReadOnlyList<GfwVesselPresence>> GetVesselPresenceAsync(
             double west,
             double south,
             double east,
@@ -92,5 +91,32 @@ public sealed class GlobalFishingWatchClient
             .Where(vessels => vessels is not null)
             .SelectMany(vessels => vessels!)
             .ToList();
+    }
+
+    internal async Task<GfwVesselDetailsResponse> GetVesselDetailsAsync(
+        string vesselId,
+        CancellationToken cancellationToken)
+    {
+        // Escape the path value so an unexpected vessel ID cannot alter the request path or query string.
+        string encodedVesselId = Uri.EscapeDataString(vesselId);
+
+        string requestUri =
+            $"/v3/vessels/{encodedVesselId}" +
+            "?dataset=public-global-vessel-identity:latest" +
+            "&registries-info-data=ALL";
+
+        using HttpResponseMessage response =
+            await _httpClient.GetAsync(requestUri, cancellationToken);
+
+        // Reuse the same exception type so vessel detail failures receive the existing Problem Details mapping.
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new GlobalFishingWatchException(response.StatusCode);
+        }
+
+        return await response.Content
+            .ReadFromJsonAsync<GfwVesselDetailsResponse>(cancellationToken)
+            ?? throw new InvalidOperationException(
+                "Global Fishing Watch returned an empty vessel detail response.");
     }
 }

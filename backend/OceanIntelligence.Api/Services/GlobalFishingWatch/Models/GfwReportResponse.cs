@@ -6,6 +6,5 @@ internal sealed class GfwReportResponse
 {
     // The dictionary key is dynamic, e.g. "public-global-presence:v4.0".
     [JsonPropertyName("entries")]
-    public List<Dictionary<string, List<GfwVesselPresence>?>> Entries
-        { get; init; } = [];
+    public List<Dictionary<string, List<GfwVesselPresence>?>> Entries { get; init; } = [];
 }
