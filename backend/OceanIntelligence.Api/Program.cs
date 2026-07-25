@@ -15,7 +15,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalFishingWatchExceptionHandler>();
 builder.Services.AddMemoryCache();
 
-// Bind the merged appsettings and user-secrets section to a typed options object.
+// Bind the merged appsettings and user-secrets section to typed options and fail during startup instead of during the first external API request.
 builder.Services
     .AddOptions<GlobalFishingWatchOptions>()
     .Bind(builder.Configuration.GetSection(
@@ -29,7 +29,6 @@ builder.Services
     .Validate(
         options => !string.IsNullOrWhiteSpace(options.AccessToken),
         "GlobalFishingWatch:AccessToken is required.")
-    // Fail during startup instead of during the first external API request.
     .ValidateOnStart();
 
 builder.Services

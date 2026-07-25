@@ -155,6 +155,7 @@ function App() {
           {selectedVessel && (
             <VesselDetailsPanel
               summary={selectedVessel}
+              query={results.query}
               details={selectedDetails}
               isLoading={
                 detailsLoadingVesselId === selectedVessel.vesselId
