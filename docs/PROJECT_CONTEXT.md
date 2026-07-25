@@ -4,9 +4,9 @@ Last verified against the repository: 2026-07-25
 
 This file is the durable engineering handoff for future development sessions.
 Read it with `AGENTS.md` before proposing or implementing work. If
-`docs/ACTIVE_PLAN.md` exists, read it next for temporary planned work. An active
-plan does not describe verified current state. Current code and tests take
-precedence if any document becomes stale.
+`docs/ACTIVE_PLAN.md` exists, read it next for active or retained implementation
+planning. A plan does not describe verified current state. Current code and
+tests take precedence if any document becomes stale.
 
 ## Product purpose
 
@@ -27,15 +27,15 @@ Implemented:
 - Keyboard-accessible vessel result selection.
 - Frontend session caching for fetched vessel details.
 - Cancellation of stale frontend detail requests.
+- Server-side `IMemoryCache` caching for area searches and vessel details.
+- One-at-a-time 4Wings report coordination for the configured GFW token.
+- Per-IP rate limiting with separate area-search and vessel-detail policies.
 - Problem Details responses for known upstream failures.
-- Tests for validation, mapping, client requests, error handling, and irregular registry JSON.
+- Tests for validation, mapping, client requests, caching, concurrency, rate limiting, error handling, and irregular registry JSON.
 - Public README, strengthened dotenv ignore rules, and repository line-ending policy.
 
 Not implemented:
 
-- Server-side caching.
-- Server-side rate limiting.
-- A single-concurrency gate or queue for 4Wings report generation.
 - Authentication or per-user quotas.
 - Public deployment configuration.
 - Database or distributed cache.
@@ -62,6 +62,7 @@ Current stack:
 - `IHttpClientFactory`-managed `HttpClient`
 - Options binding and startup validation
 - ASP.NET Core exception handling and Problem Details
+- ASP.NET Core in-memory caching and rate limiting
 - xUnit
 - React 19
 - Vite 8
@@ -103,6 +104,7 @@ Validation:
 
 - Longitudes must be between -180 and 180.
 - Latitudes must be between -90 and 90.
+- All coordinates must be finite numbers.
 - West must be less than east.
 - South must be less than north.
 - Start date must precede end date.
@@ -186,6 +188,8 @@ There is no frontend route for vessel details yet. The responsive panel is inten
 - `Models/` contains public API contracts.
 - `Services/GlobalFishingWatch/Models/` contains raw upstream JSON contracts.
 - `GlobalFishingWatchClient` configures bearer authentication and performs upstream HTTP calls.
+- `GlobalFishingWatchDataService` owns cache behavior and coordinates protected access to the raw client.
+- `GlobalFishingWatchRequestCoordinator` owns the singleton report gate and vessel-detail single-flight work.
 - `GlobalFishingWatchExceptionHandler` maps known GFW failures to safe Problem Details responses.
 
 Current upstream error mapping:
@@ -194,7 +198,29 @@ Current upstream error mapping:
 - GFW request or gateway timeout becomes API `504 Gateway Timeout`.
 - Other non-success GFW responses become API `502 Bad Gateway`.
 
+Local rate-limit rejection is separate from upstream error handling. It returns API `429 Too Many Requests` with Problem Details and `Retry-After` when the fixed-window limiter supplies it.
+
 Do not leak raw upstream response bodies or token information in public errors.
+
+## Backend protection
+
+`ApiProtection` settings are bound and validated during startup.
+
+Current defaults:
+
+- Area-search cache expiration: 30 minutes.
+- Vessel-detail cache expiration: 24 hours.
+- Area-search rate limit: 6 requests per minute per client IP.
+- Vessel-detail rate limit: 60 requests per minute per client IP.
+- Rate-limit queue length: zero.
+
+Both caches use absolute expiration and store only successfully deserialized upstream responses. Area cache keys contain canonical invariant coordinates and ISO dates. Vessel-detail cache keys preserve the exact case-sensitive GFW identifier. Signed coordinate zero is canonicalized so equivalent accepted queries share an entry.
+
+An area cache miss waits on one singleton `SemaphoreSlim` report gate. The cache is rechecked after entering the gate, and the upstream report uses the caller's cancellation token. The gate is released in `finally`.
+
+Vessel-detail requests never acquire the report gate. Identical simultaneous detail requests share one in-flight operation, while different vessel IDs remain independent. Failed or canceled operations are removed and are not cached.
+
+The cache, report gate, in-flight request tracking, and rate-limit counters are process-local. Production must initially run one API replica unless these protections are replaced with distributed coordination. Rate limits use the connection's remote IP and do not trust forwarded headers until a hosting platform and trusted-proxy configuration are selected.
 
 ## Important upstream compatibility behavior
 
@@ -241,16 +267,15 @@ Regression tests cover all three cases. Preserve this strict fallback behavior.
 
 The repository may be public, but the application should not be offered as an unrestricted public service yet. A hosted backend would use the owner's GFW token for every visitor.
 
-Before public deployment:
+The local protection foundation is implemented. Before public deployment:
 
-1. Add server-side caching with `IMemoryCache`.
-2. Cache area searches for a shorter period and vessel details for a longer period.
-3. Enforce one active 4Wings report per token, preferably with a gate or small queue.
-4. Add ASP.NET Core rate limiting with clear `429` responses.
-5. Add tests proving cache hits avoid duplicate upstream calls and concurrency is controlled.
-6. Configure production CORS or serve the frontend and API from one origin.
-7. Inject the GFW token through the hosting platform's secret configuration.
-8. Add usage monitoring, budget alerts, and conservative hosting limits.
+1. Choose a hosting architecture and initially enforce one API replica.
+2. Configure production CORS or serve the frontend and API from one origin.
+3. Inject the GFW token through the hosting platform's secret configuration.
+4. Configure trusted forwarded headers before relying on proxy-provided client IPs.
+5. Add usage monitoring, memory monitoring, budget alerts, and conservative hosting limits.
+6. Revisit bounded cache sizing using measured response and memory behavior.
+7. Deploy privately or as a limited preview before unrestricted public access.
 
 GFW currently documents only one concurrent 4Wings report per token. Reverify provider limits and non-commercial-use terms before deployment because external policies can change.
 
@@ -264,18 +289,15 @@ Use `IMemoryCache` for the first single-instance deployment. Redis is premature 
 
 ## Recommended next slice
 
-The next planned backend slice is public-use protection:
+The next product slice is the first "What's near me?" experience:
 
-1. Introduce `IMemoryCache` behind application-owned caching behavior.
-2. Define normalized cache keys for accepted area queries and vessel IDs.
-3. Choose explicit configurable expirations, with area results shorter than identity details.
-4. Add a one-at-a-time 4Wings report gate that honors cancellation.
-5. Add ASP.NET Core per-client or per-IP rate limiting.
-6. Preserve safe Problem Details behavior for throttled requests.
-7. Add focused unit and integration tests.
-8. Run the full verification set.
+1. Request browser geolocation only after an explicit user action.
+2. Choose a sensible default radius and historical date range.
+3. Convert the location and radius into the existing area-search contract.
+4. Keep the current geographic and date controls available as advanced search.
+5. Preserve all historical-AIS caveats and avoid live-location claims.
 
-Do not introduce Redis, authentication, a database, or cloud-specific code as part of this slice.
+Do not add a map or automatic vessel tracks as part of the first slice.
 
 ## Verification
 
@@ -291,7 +313,7 @@ dotnet format OceanIntelligence.slnx --verify-no-changes --no-restore
 git diff --check
 ```
 
-The last recorded full verification after the vessel-details implementation passed frontend lint/build, .NET formatting, and 20 backend tests. Treat that as historical evidence and rerun the checks before making a current claim.
+The full verification set passed on 2026-07-25 after backend protection was implemented. The backend suite contains 32 passing tests.
 
 Do not open the frontend or launch a browser during verification. The user performs visual inspection.
 
@@ -300,7 +322,11 @@ Do not open the frontend or launch a browser during verification. The user perfo
 - `backend/OceanIntelligence.Api/Program.cs`
 - `backend/OceanIntelligence.Api/Controllers/VesselTrafficController.cs`
 - `backend/OceanIntelligence.Api/Controllers/VesselsController.cs`
+- `backend/OceanIntelligence.Api/Protection/ApiProtectionOptions.cs`
+- `backend/OceanIntelligence.Api/Protection/RateLimitPolicyNames.cs`
 - `backend/OceanIntelligence.Api/Services/GlobalFishingWatch/GlobalFishingWatchClient.cs`
+- `backend/OceanIntelligence.Api/Services/GlobalFishingWatch/GlobalFishingWatchDataService.cs`
+- `backend/OceanIntelligence.Api/Services/GlobalFishingWatch/GlobalFishingWatchRequestCoordinator.cs`
 - `backend/OceanIntelligence.Api/ErrorHandling/GlobalFishingWatchExceptionHandler.cs`
 - `backend/OceanIntelligence.Api/Models/VesselTrafficResponse.cs`
 - `backend/OceanIntelligence.Api/Models/VesselDetailsResponse.cs`

@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using OceanIntelligence.Api.Models;
+using OceanIntelligence.Api.Protection;
 using OceanIntelligence.Api.Services.GlobalFishingWatch;
 
 namespace OceanIntelligence.Api.Controllers;
@@ -10,15 +12,17 @@ namespace OceanIntelligence.Api.Controllers;
 [Route("api/vessel-traffic")]
 public sealed class VesselTrafficController : ControllerBase
 {
-    private readonly GlobalFishingWatchClient _gfwClient;
+    private readonly GlobalFishingWatchDataService _gfwDataService;
 
-    // ASP.NET injects the registered GFW client when it creates this controller.
-    public VesselTrafficController(GlobalFishingWatchClient gfwClient)
+    // ASP.NET injects the protected GFW data service when it creates this controller.
+    public VesselTrafficController(
+        GlobalFishingWatchDataService gfwDataService)
     {
-        _gfwClient = gfwClient;
+        _gfwDataService = gfwDataService;
     }
 
     [HttpGet]
+    [EnableRateLimiting(RateLimitPolicyNames.AreaSearch)]
     // ActionResult lets this endpoint return either vessel data or an HTTP error.
     public async Task<ActionResult<VesselTrafficResponse>> Get(
         // Builds the request model from URL query-string values.
@@ -39,7 +43,7 @@ public sealed class VesselTrafficController : ControllerBase
         }
 
         // await releases the request thread while GFW does the network work.
-        var vessels = await _gfwClient.GetVesselPresenceAsync(
+        var vessels = await _gfwDataService.GetVesselPresenceAsync(
             request.West,
             request.South,
             request.East,
@@ -79,6 +83,14 @@ public sealed class VesselTrafficController : ControllerBase
     // These checks compare multiple fields, so they belong together here.
     private static string? Validate(VesselTrafficRequest request)
     {
+        if (!double.IsFinite(request.West) ||
+            !double.IsFinite(request.South) ||
+            !double.IsFinite(request.East) ||
+            !double.IsFinite(request.North))
+        {
+            return "Coordinates must be finite numbers.";
+        }
+
         if (request.West is < -180 or > 180 ||
             request.East is < -180 or > 180)
         {
