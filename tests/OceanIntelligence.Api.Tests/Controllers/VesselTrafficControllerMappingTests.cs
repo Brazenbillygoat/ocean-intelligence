@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using OceanIntelligence.Api.Controllers;
 using OceanIntelligence.Api.Models;
 using OceanIntelligence.Api.Services.GlobalFishingWatch;
+using OceanIntelligence.Api.Tests.TestSupport;
 
 namespace OceanIntelligence.Api.Tests.Controllers;
 
@@ -49,7 +50,9 @@ public sealed class VesselTrafficControllerMappingTests
         });
 
         var gfwClient = new GlobalFishingWatchClient(httpClient, options);
-        var controller = new VesselTrafficController(gfwClient);
+        using var harness =
+            new GlobalFishingWatchDataServiceHarness(gfwClient);
+        var controller = new VesselTrafficController(harness.Service);
 
         var request = new VesselTrafficRequest
         {

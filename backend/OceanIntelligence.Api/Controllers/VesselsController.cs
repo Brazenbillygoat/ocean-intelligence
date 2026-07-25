@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using OceanIntelligence.Api.Models;
+using OceanIntelligence.Api.Protection;
 using OceanIntelligence.Api.Services.GlobalFishingWatch;
 
 namespace OceanIntelligence.Api.Controllers;
@@ -8,14 +10,16 @@ namespace OceanIntelligence.Api.Controllers;
 [Route("api/vessels")]
 public sealed class VesselsController : ControllerBase
 {
-    private readonly GlobalFishingWatchClient _gfwClient;
+    private readonly GlobalFishingWatchDataService _gfwDataService;
 
-    public VesselsController(GlobalFishingWatchClient gfwClient)
+    public VesselsController(
+        GlobalFishingWatchDataService gfwDataService)
     {
-        _gfwClient = gfwClient;
+        _gfwDataService = gfwDataService;
     }
 
     [HttpGet("{vesselId}")]
+    [EnableRateLimiting(RateLimitPolicyNames.VesselDetails)]
     public async Task<ActionResult<VesselDetailsResponse>> GetById(
         string vesselId,
         CancellationToken cancellationToken)
@@ -31,7 +35,7 @@ public sealed class VesselsController : ControllerBase
             });
         }
 
-        var details = await _gfwClient.GetVesselDetailsAsync(
+        var details = await _gfwDataService.GetVesselDetailsAsync(
             vesselId,
             cancellationToken);
 

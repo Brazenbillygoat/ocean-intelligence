@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using OceanIntelligence.Api.Controllers;
 using OceanIntelligence.Api.Models;
 using OceanIntelligence.Api.Services.GlobalFishingWatch;
+using OceanIntelligence.Api.Tests.TestSupport;
 
 namespace OceanIntelligence.Api.Tests.Controllers;
 
@@ -37,7 +38,9 @@ public sealed class VesselTrafficControllerTests
         });
 
         var gfwClient = new GlobalFishingWatchClient(httpClient, options);
-        var controller = new VesselTrafficController(gfwClient);
+        using var harness =
+            new GlobalFishingWatchDataServiceHarness(gfwClient);
+        var controller = new VesselTrafficController(harness.Service);
 
         var request = new VesselTrafficRequest
         {
@@ -56,5 +59,41 @@ public sealed class VesselTrafficControllerTests
 
         // Assert: invalid input belongs in the HTTP 400 family.
         Assert.IsType<BadRequestObjectResult>(response.Result);
+    }
+
+    [Fact]
+    public async Task Get_WithNonFiniteCoordinate_ReturnsBadRequest()
+    {
+        using var httpClient = new HttpClient();
+
+        var options = Options.Create(new GlobalFishingWatchOptions
+        {
+            BaseUrl = "https://example.test",
+            AccessToken = "test-token"
+        });
+
+        var gfwClient = new GlobalFishingWatchClient(httpClient, options);
+        using var harness =
+            new GlobalFishingWatchDataServiceHarness(gfwClient);
+        var controller = new VesselTrafficController(harness.Service);
+
+        var request = new VesselTrafficRequest
+        {
+            West = double.NaN,
+            South = 42,
+            East = -70,
+            North = 43,
+            StartDate = new DateOnly(2026, 6, 1),
+            EndDate = new DateOnly(2026, 6, 8)
+        };
+
+        ActionResult<VesselTrafficResponse> response =
+            await controller.Get(request, CancellationToken.None);
+
+        var badRequest =
+            Assert.IsType<BadRequestObjectResult>(response.Result);
+        var problem = Assert.IsType<ProblemDetails>(badRequest.Value);
+
+        Assert.Equal("Coordinates must be finite numbers.", problem.Detail);
     }
 }
