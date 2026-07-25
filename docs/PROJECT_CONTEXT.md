@@ -24,6 +24,7 @@ Implemented:
 - Geographic and date-based vessel-presence search.
 - Vessel identity, registry, specification, and classification details.
 - React search, loading, error, result, selection, retry, and responsive detail-panel interactions.
+- An internal vessel research dossier with accessible collapsible sections, clearly separated GFW evidence, search context, and visibly unfinished research placeholders.
 - Keyboard-accessible vessel result selection.
 - Frontend session caching for fetched vessel details.
 - Cancellation of stale frontend detail requests.
@@ -40,6 +41,7 @@ Not implemented:
 - Public deployment configuration.
 - Database or distributed cache.
 - Live location, automatic tracks, maps, routing, or "What's near me?"
+- Reviewed vessel imagery, external research enrichment, approved research notes, or sourced general-reference content.
 - GitHub Actions.
 
 ## Repository and stack
@@ -180,6 +182,8 @@ Selecting another vessel aborts the previous detail request. Reopening a cached 
 
 `VesselDetailsPanel.tsx` merges the area-search summary with the detail response. Non-empty search values remain authoritative when a detailed record is empty. The panel presents historical presence context, identities, registry specifications, classifications, attribution, and caveats.
 
+The panel is organized as a research dossier using native, initially open `details` sections. All ten sections remain visible while GFW details load or fail, with pending, failed, successfully empty, and populated states kept distinct. GFW vessel evidence, general-reference scaffolding, and pending vessel-specific research are visibly labeled. Frontend-only placeholder configuration is kept separate from the stable API types and contains no invented facts, URLs, or approved content. The regional section displays the completed search bounds and date range as historical report context, not a current vessel location.
+
 There is no frontend route for vessel details yet. The responsive panel is intentional.
 
 ## Backend boundaries
@@ -313,7 +317,7 @@ dotnet format OceanIntelligence.slnx --verify-no-changes --no-restore
 git diff --check
 ```
 
-The full verification set passed on 2026-07-25 after backend protection was implemented. The backend suite contains 32 passing tests.
+The full verification set passed on 2026-07-25 after the dossier implementation and formatting remediation. The backend suite contains 32 passing tests.
 
 Do not open the frontend or launch a browser during verification. The user performs visual inspection.
 
@@ -334,6 +338,9 @@ Do not open the frontend or launch a browser during verification. The user perfo
 - `frontend/src/App.tsx`
 - `frontend/src/components/VesselTrafficResults.tsx`
 - `frontend/src/components/VesselDetailsPanel.tsx`
+- `frontend/src/components/vessel-details/VesselResearchDossier.tsx`
+- `frontend/src/data/vesselResearchPlaceholders.ts`
+- `frontend/src/types/vesselResearch.ts`
 - `frontend/src/api/vesselTrafficApi.ts`
 - `frontend/src/api/vesselDetailsApi.ts`
 - `tests/OceanIntelligence.Api.Tests`

@@ -24,10 +24,10 @@ public sealed class VesselTrafficController : ControllerBase
     [HttpGet]
     [EnableRateLimiting(RateLimitPolicyNames.AreaSearch)]
     // ActionResult lets this endpoint return either vessel data or an HTTP error.
+    // ASP.NET Core builds the request model from URL query-string values.
+    // The cancellation token stops the GFW request if the caller disconnects or cancels.
     public async Task<ActionResult<VesselTrafficResponse>> Get(
-        // Builds the request model from URL query-string values.
         [FromQuery] VesselTrafficRequest request,
-        // Stops the GFW request if the caller disconnects or cancels.
         CancellationToken cancellationToken)
     {
         string? validationError = Validate(request);
