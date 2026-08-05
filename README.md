@@ -7,8 +7,14 @@ The application works with historical AIS observations. It does not provide live
 ## Features
 
 - Search a geographic bounding box and date range for observed vessel traffic.
+- Search dates default to a dynamic seven-day historical window ending five days ago.
+- Filter results by vessel name, MMSI, IMO, or callsign, plus flag and vessel type.
+- Sort results by sampled AIS hours or vessel name, with a deterministic tie-breaker.
+- Results reveal progressively: 50 matching vessels first, with a `Show 50 more` action.
+- A replacement search keeps previous results visible until the new report succeeds.
 - View vessel identity, classification, flag, and sampled AIS presence hours.
 - Select a result to load additional AIS identity and public registry records.
+- Switch the detail panel between UTC and local time for every timestamp.
 - Review vessel and gear classifications with their source and effective years.
 - Preserve useful area-search values when detailed records contain empty fields.
 - Cache vessel details in browser state to avoid repeated requests during a session.
@@ -135,6 +141,8 @@ $vesselTraffic.vessels | Select-Object -First 10
 
 The response contains the accepted query, result count, and vessels with identity, classification, observation boundaries, and sampled AIS presence hours.
 
+The frontend fetches one complete report and then filters, sorts, and progressively reveals it locally. It shows 50 matching vessels first and adds 50 per `Show 50 more` action. No filtering, sorting, or `Show more` action makes an API request.
+
 ### Get vessel details
 
 ```http
@@ -148,6 +156,8 @@ This endpoint performs a lighter Global Fishing Watch identity lookup for one se
 - Combined vessel and gear classifications
 - Dataset and provider information
 - Attribution and data caveats
+
+The detail panel shows timestamps in UTC by default, with a `Show local time` toggle that switches every presence, identity, and registry timestamp to the browser's local time zone.
 
 The application deliberately does not request detailed tracks for every search result.
 

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type {
   VesselClassificationRecord,
   VesselDetailsResponse,
@@ -24,26 +25,75 @@ interface DetailItemProps {
   value: string | number | null | undefined;
 }
 
-const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
-  dateStyle: "medium",
-  timeStyle: "short",
+type TimeMode = "utc" | "local";
+
+const localTimeZoneName =
+  Intl.DateTimeFormat().resolvedOptions().timeZone ?? "local time";
+
+// Explicit date and time fields keep presence, identity, and registry
+// timestamps consistent. timeZoneName surfaces a short zone label so a value
+// is never shown without time-zone context. toISOString slicing is avoided so
+// local calendar values do not shift the date near midnight.
+const utcTimestampFormatter = new Intl.DateTimeFormat(undefined, {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: "UTC",
+  timeZoneName: "short",
+});
+
+const localTimestampFormatter = new Intl.DateTimeFormat(undefined, {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZoneName: "short",
 });
 
 function firstNonempty(...values: Array<string | null | undefined>): string {
   return values.find((value) => value?.trim())?.trim() ?? "";
 }
 
-function formatDate(value: string | null): string {
+function formatTimestamp(value: string | null, mode: TimeMode): string {
   if (!value) {
     return "Unavailable";
   }
 
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : dateTimeFormatter.format(date);
+
+  // Preserve the upstream value verbatim when it cannot be parsed so a
+  // misleading UTC or local label is never attached to an unknown timestamp.
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const formatter =
+    mode === "utc" ? utcTimestampFormatter : localTimestampFormatter;
+
+  return formatter.format(date);
 }
 
-function formatPeriod(from: string | null, through: string | null): string {
-  return `${formatDate(from)} to ${formatDate(through)}`;
+// Both endpoints must parse before a range can be called reversed. A missing
+// or unparseable value is not treated as an ordering problem.
+function isReversedRange(
+  first: string | null,
+  last: string | null,
+): boolean {
+  if (!first || !last) {
+    return false;
+  }
+
+  const startDate = new Date(first);
+  const endDate = new Date(last);
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return false;
+  }
+
+  return startDate.getTime() > endDate.getTime();
 }
 
 function formatMeasurement(value: number | null, unit: string): string | null {
@@ -119,6 +169,14 @@ function DetailSectionStatus({
   return <p className="vessel-details-panel__empty">{message}</p>;
 }
 
+function SourceDataWarning() {
+  return (
+    <p className="source-data-warning">
+      Source data lists the first observation later than the last.
+    </p>
+  );
+}
+
 export function VesselDetailsPanel({
   summary,
   query,
@@ -128,6 +186,23 @@ export function VesselDetailsPanel({
   onRetry,
   onClose,
 }: VesselDetailsPanelProps) {
+  // Time mode is panel-local: the panel stays mounted while the user switches
+  // vessels, so the chosen mode persists for the session, and unmounting on
+  // Close or a new area search resets it to UTC.
+  const [timeMode, setTimeMode] = useState<TimeMode>("utc");
+
+  const toggleTimeMode = () =>
+    setTimeMode((current) => (current === "utc" ? "local" : "utc"));
+
+  // Move focus to the panel heading when a vessel is selected or switched so
+  // keyboard and narrow-screen users arrive at the new content. tabIndex={-1}
+  // keeps the heading programmatically focusable without joining tab order.
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, [summary.vesselId]);
+
   const primaryIdentity = details?.aisIdentities[0];
   const primaryRegistry =
     details?.registryRecords.find((record) => record.isLatestRecord) ??
@@ -171,15 +246,31 @@ export function VesselDetailsPanel({
   );
 
   return (
-    <section className="vessel-details-panel" aria-labelledby="vessel-details-heading">
+    <section className="vessel-details-panel details-region" aria-labelledby="vessel-details-heading">
       <div className="vessel-details-panel__header">
         <div>
           <p className="vessel-details-panel__eyebrow">Vessel details</p>
-          <h2 id="vessel-details-heading">{name || "Unnamed vessel"}</h2>
+          <h2 id="vessel-details-heading" ref={headingRef} tabIndex={-1}>
+            {name || "Unnamed vessel"}
+          </h2>
         </div>
-        <button type="button" className="secondary-button" onClick={onClose}>
-          Close
-        </button>
+        <div className="vessel-details-panel__header-actions">
+          <span className="vessel-details-panel__time-mode">
+            {timeMode === "utc"
+              ? "Times shown in UTC"
+              : `Times shown in ${localTimeZoneName}`}
+          </span>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={toggleTimeMode}
+          >
+            {timeMode === "utc" ? "Show local time" : "Show UTC"}
+          </button>
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Close
+          </button>
+        </div>
       </div>
 
       {isLoading && (
@@ -198,7 +289,7 @@ export function VesselDetailsPanel({
       )}
 
       <div className="vessel-details-panel__content">
-        <DossierSection id="overview" title="Overview" label="GFW vessel data">
+        <DossierSection id="overview" title="Overview" label="GFW vessel data" initialOpen>
           <dl className="detail-grid detail-grid--summary">
             <DetailItem label="Vessel type" value={vesselType} />
             <DetailItem label="Gear type" value={gearType} />
@@ -209,8 +300,20 @@ export function VesselDetailsPanel({
           </dl>
 
           <div className="presence-summary">
-            <strong>{summary.presenceHours.toLocaleString()} observed hours</strong>
-            <span>{formatPeriod(summary.enteredAt, summary.exitedAt)}</span>
+            <strong>{summary.presenceHours.toLocaleString()} sampled AIS hours</strong>
+            <dl className="detail-grid">
+              <DetailItem
+                label="First observed in searched area"
+                value={formatTimestamp(summary.enteredAt, timeMode)}
+              />
+              <DetailItem
+                label="Last observed in searched area"
+                value={formatTimestamp(summary.exitedAt, timeMode)}
+              />
+            </dl>
+            {isReversedRange(summary.enteredAt, summary.exitedAt) && (
+              <SourceDataWarning />
+            )}
             <small>Historical AIS presence in the searched area, not a live vessel position.</small>
           </div>
         </DossierSection>
@@ -262,13 +365,24 @@ export function VesselDetailsPanel({
                       value={identity.sourceCodes.join(", ")}
                     />
                     <DetailItem
-                      label="Identity observed"
-                      value={formatPeriod(
+                      label="First identity observation"
+                      value={formatTimestamp(
                         identity.identityObservedFrom,
+                        timeMode,
+                      )}
+                    />
+                    <DetailItem
+                      label="Last identity observation"
+                      value={formatTimestamp(
                         identity.identityObservedThrough,
+                        timeMode,
                       )}
                     />
                   </dl>
+                  {isReversedRange(
+                    identity.identityObservedFrom,
+                    identity.identityObservedThrough,
+                  ) && <SourceDataWarning />}
                   {identity.shipTypeHistory.length > 0 && (
                     <p className="detail-record__history">
                       Type history:{" "}
@@ -345,13 +459,24 @@ export function VesselDetailsPanel({
                       value={formatMeasurement(record.depthMeters, "m")}
                     />
                     <DetailItem
-                      label="Record observed"
-                      value={formatPeriod(
+                      label="First record observation"
+                      value={formatTimestamp(
                         record.recordObservedFrom,
+                        timeMode,
+                      )}
+                    />
+                    <DetailItem
+                      label="Last record observation"
+                      value={formatTimestamp(
                         record.recordObservedThrough,
+                        timeMode,
                       )}
                     />
                   </dl>
+                  {isReversedRange(
+                    record.recordObservedFrom,
+                    record.recordObservedThrough,
+                  ) && <SourceDataWarning />}
                 </article>
               ))}
             </div>
