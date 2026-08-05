@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { FormEvent } from "react";
 import type { VesselTrafficQuery } from "../types/vesselTraffic";
 
@@ -6,10 +7,42 @@ interface VesselTrafficSearchFormProps {
   onSearch: (query: VesselTrafficQuery) => void;
 }
 
+// Format a Date as a local YYYY-MM-DD value for native date inputs. Local
+// calendar components are used directly so a date near midnight is not shifted
+// by a UTC round trip.
+function toLocalDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+// Calculate the default historical window once on mount: the end date is five
+// calendar days before the user's current local date, and the start date is
+// seven days before that end date. The assumed provider lag is a default, not
+// a restriction, so users can still select other valid dates.
+function getDefaultDateRange(): { startDate: string; endDate: string } {
+  const today = new Date();
+  const endDate = new Date(today);
+  endDate.setDate(endDate.getDate() - 5);
+
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - 7);
+
+  return {
+    startDate: toLocalDateInputValue(startDate),
+    endDate: toLocalDateInputValue(endDate),
+  };
+}
+
 export function VesselTrafficSearchForm({
   isLoading,
   onSearch,
 }: VesselTrafficSearchFormProps) {
+  // A lazy initializer computes the dynamic window once when the form mounts.
+  const [defaultDates] = useState(getDefaultDateRange);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -94,7 +127,7 @@ export function VesselTrafficSearchForm({
           <input
             name="startDate"
             type="date"
-            defaultValue="2026-06-01"
+            defaultValue={defaultDates.startDate}
             required
           />
         </label>
@@ -104,7 +137,7 @@ export function VesselTrafficSearchForm({
           <input
             name="endDate"
             type="date"
-            defaultValue="2026-06-08"
+            defaultValue={defaultDates.endDate}
             required
           />
         </label>

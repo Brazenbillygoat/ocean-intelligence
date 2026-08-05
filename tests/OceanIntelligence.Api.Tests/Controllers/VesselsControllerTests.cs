@@ -180,6 +180,13 @@ public sealed class VesselsControllerTests
                 Assert.Equal(500, newer.MessagesCount);
                 Assert.Equal(400, newer.PositionsCount);
 
+                Assert.Equal(
+                    DateTimeOffset.Parse("2025-01-01T00:00:00Z"),
+                    newer.IdentityObservedFrom);
+                Assert.Equal(
+                    DateTimeOffset.Parse("2026-06-08T12:00:00Z"),
+                    newer.IdentityObservedThrough);
+
                 var history = Assert.Single(newer.ShipTypeHistory);
 
                 Assert.Equal("CARGO", history.VesselType);
@@ -193,6 +200,13 @@ public sealed class VesselsControllerTests
                 // Nullable upstream values become empty strings so clients receive a consistent public type.
                 Assert.Equal(string.Empty, older.Imo);
                 Assert.Equal(string.Empty, older.GearType);
+
+                Assert.Equal(
+                    DateTimeOffset.Parse("2023-01-01T00:00:00Z"),
+                    older.IdentityObservedFrom);
+                Assert.Equal(
+                    DateTimeOffset.Parse("2024-12-31T23:00:00Z"),
+                    older.IdentityObservedThrough);
             });
 
         var registry = Assert.Single(response.RegistryRecords);

@@ -30,12 +30,20 @@ function App() {
   >(null);
   const [detailsError, setDetailsError] = useState<string | null>(null);
   const detailsAbortController = useRef<AbortController | null>(null);
+  // The vessel card button that opened the detail panel is retained so Close can
+  // restore keyboard focus to it. A new area search does not restore focus.
+  const activatingVesselButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     return () => detailsAbortController.current?.abort();
   }, []);
 
   async function handleSearch(query: VesselTrafficQuery) {
+    // Capture the prior report before any state changes so a replacement
+    // search can keep it visible and identify it by its date range on failure.
+    const priorResults = results;
+    const isReplacement = priorResults !== null;
+
     detailsAbortController.current?.abort();
     detailsAbortController.current = null;
     setSelectedVessel(null);
@@ -44,9 +52,16 @@ function App() {
     setIsLoading(true);
     setError(null);
 
+    // An initial search clears the empty/loading state. A replacement keeps the
+    // previous results visible until the new request succeeds.
+    if (!isReplacement) {
+      setResults(null);
+    }
+
     try {
       const response = await getVesselTraffic(query);
       setResults(response);
+      setError(null);
     } catch (requestError) {
       // JavaScript allows any value to be thrown, so we check for Error before reading its message.
       const message =
@@ -54,15 +69,30 @@ function App() {
           ? requestError.message
           : "An unexpected error occurred.";
 
-      setError(message);
-      setResults(null);
+      if (isReplacement) {
+        // Keep the prior report and label it by its date range so users do not
+        // mistake it for the failed query.
+        setError(
+          `${message} Previous results from ${priorResults.query.startDate} to ${priorResults.query.endDate} remain visible.`,
+        );
+      } else {
+        setError(message);
+        setResults(null);
+      }
     } finally {
       // finally runs after either success or failure, ensuring the form never remains permanently disabled.
       setIsLoading(false);
     }
   }
 
-  async function handleVesselSelect(vessel: VesselTrafficVessel) {
+  async function handleVesselSelect(
+    vessel: VesselTrafficVessel,
+    activatingButton?: HTMLButtonElement,
+  ) {
+    if (activatingButton) {
+      activatingVesselButtonRef.current = activatingButton;
+    }
+
     detailsAbortController.current?.abort();
     detailsAbortController.current = null;
     setSelectedVessel(vessel);
@@ -111,6 +141,15 @@ function App() {
     setSelectedVessel(null);
     setDetailsLoadingVesselId(null);
     setDetailsError(null);
+
+    // Restore focus to the card that opened the panel only if it is still in
+    // the document. A filtered-out or replaced card cannot receive focus.
+    const activatingButton = activatingVesselButtonRef.current;
+    activatingVesselButtonRef.current = null;
+
+    if (activatingButton && document.contains(activatingButton)) {
+      activatingButton.focus();
+    }
   }
 
   const selectedDetails = selectedVessel
@@ -138,6 +177,12 @@ function App() {
 
       {error && <p role="alert">{error}</p>}
 
+      {isLoading && !results && (
+        <p className="search-status" role="status" aria-live="polite">
+          Generating the area report. This may take a moment.
+        </p>
+      )}
+
       {results && (
         <div
           className={
@@ -150,6 +195,7 @@ function App() {
             results={results}
             selectedVesselId={selectedVessel?.vesselId ?? null}
             onSelectVessel={handleVesselSelect}
+            isUpdating={isLoading}
           />
 
           {selectedVessel && (

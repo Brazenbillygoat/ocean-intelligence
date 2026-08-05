@@ -1,6 +1,6 @@
 # Ocean Intelligence project context
 
-Last verified against the repository: 2026-07-25
+Last verified against the repository: 2026-08-05
 
 This file is the durable engineering handoff for future development sessions.
 Read it with `AGENTS.md` before proposing or implementing work. If
@@ -22,10 +22,18 @@ Implemented:
 
 - ASP.NET Core API integration with Global Fishing Watch v3.
 - Geographic and date-based vessel-presence search.
+- Dynamic seven-day historical search date defaults ending five days before the current local date.
 - Vessel identity, registry, specification, and classification details.
+- UTC and local time modes for every detail-panel timestamp, with a panel-wide toggle.
+- Separate first and last observation fields with source-data warnings for reversed periods.
+- Client-side result filtering, sorting, and progressive disclosure operating on the complete in-memory report.
+- Result exploration with no HTTP calls: text search, flag and vessel-type filters, two sort modes, and `Show 50 more`.
+- Replacement-search loading that retains previous results until the new report succeeds or fails.
+- Responsive detail-panel placement before the result list on tablet and mobile widths, with focus management.
 - React search, loading, error, result, selection, retry, and responsive detail-panel interactions.
 - An internal vessel research dossier with accessible collapsible sections, clearly separated GFW evidence, search context, and visibly unfinished research placeholders.
-- Keyboard-accessible vessel result selection.
+- Overview as the only initially open dossier section; all other sections start closed.
+- Keyboard-accessible vessel result selection with focus restoration on Close.
 - Frontend session caching for fetched vessel details.
 - Cancellation of stale frontend detail requests.
 - Server-side `IMemoryCache` caching for area searches and vessel details.
@@ -40,6 +48,7 @@ Not implemented:
 - Authentication or per-user quotas.
 - Public deployment configuration.
 - Database or distributed cache.
+- Server-side result pagination. Filtering, sorting, and progressive disclosure are local browser operations over the complete cached report. API pagination is deferred until measured response size or upstream support justifies it.
 - Live location, automatic tracks, maps, routing, or "What's near me?"
 - Reviewed vessel imagery, external research enrichment, approved research notes, or sourced general-reference content.
 - GitHub Actions.
@@ -173,18 +182,24 @@ Maintain this request pattern:
 `frontend/src/App.tsx` owns:
 
 - Area-search results, loading, and errors.
+- Initial and replacement-search loading states. A replacement search keeps previous results visible until the new report succeeds or fails; a failed replacement retains the prior report and labels it by its date range.
 - Selected vessel summary.
 - Vessel-detail loading and errors.
 - An `AbortController` for the active detail request.
 - A vessel-ID-keyed in-memory details cache.
+- The activating vessel-card button reference for Close focus restoration.
 
-Selecting another vessel aborts the previous detail request. Reopening a cached vessel does not repeat the API call during that browser session. Starting a new area search closes the detail panel but retains the session cache.
+Selecting another vessel aborts the previous detail request and moves focus to the detail-panel heading. Reopening a cached vessel does not repeat the API call during that browser session. Close restores focus to the activating card button when it is still connected. Starting a new area search closes the detail panel but retains the session cache and does not restore stale focus.
 
-`VesselDetailsPanel.tsx` merges the area-search summary with the detail response. Non-empty search values remain authoritative when a detailed record is empty. The panel presents historical presence context, identities, registry specifications, classifications, attribution, and caveats.
+`VesselTrafficSearchForm.tsx` calculates dynamic search date defaults once on mount: a seven-day historical window ending five calendar days before the current local date, formatted as local calendar dates without UTC conversion.
 
-The panel is organized as a research dossier using native, initially open `details` sections. All ten sections remain visible while GFW details load or fail, with pending, failed, successfully empty, and populated states kept distinct. GFW vessel evidence, general-reference scaffolding, and pending vessel-specific research are visibly labeled. Frontend-only placeholder configuration is kept separate from the stable API types and contains no invented facts, URLs, or approved content. The regional section displays the completed search bounds and date range as historical report context, not a current vessel location.
+`VesselTrafficResults.tsx` fetches one complete report and then filters, sorts, and progressively reveals it locally. Text search covers name, MMSI, IMO, and callsign. Flag and vessel-type filters are derived from nonempty values in the complete response. Two sort modes use sampled AIS hours or vessel name, with vessel ID as the deterministic tie-breaker. The first 50 matching vessels render, with a `Show 50 more` action. Matching and total counts stay visible. A new report resets the controls and visible count. No filter, sort, or `Show more` action makes an HTTP request. The selected vessel and its detail panel persist even when a filter hides the card.
 
-There is no frontend route for vessel details yet. The responsive panel is intentional.
+`VesselDetailsPanel.tsx` merges the area-search summary with the detail response. Non-empty search values remain authoritative when a detailed record is empty. The panel presents historical presence context, identities, registry specifications, classifications, attribution, and caveats. A panel-wide toggle switches every presence, identity, and registry timestamp between UTC (default) and the browser's local time zone; separate first and last observation fields replace combined ranges, and reversed parseable periods show a source-data warning.
+
+The panel is organized as a research dossier using native `details` sections. Overview is initially open; the other nine sections start closed. All ten sections remain visible while GFW details load or fail, with pending, failed, successfully empty, and populated states kept distinct. GFW vessel evidence, general-reference scaffolding, and pending vessel-specific research are visibly labeled. Frontend-only placeholder configuration is kept separate from the stable API types and contains no invented facts, URLs, or approved content. The regional section displays the completed search bounds and date range as historical report context, not a current vessel location.
+
+At desktop widths the results stay on the left and the sticky detail panel on the right. At tablet and mobile widths the single detail panel renders before the result list through explicit grid areas. There is no frontend route for vessel details yet. The responsive panel is intentional.
 
 ## Backend boundaries
 
@@ -317,7 +332,7 @@ dotnet format OceanIntelligence.slnx --verify-no-changes --no-restore
 git diff --check
 ```
 
-The full verification set passed on 2026-07-25 after the dossier implementation and formatting remediation. The backend suite contains 32 passing tests.
+The full verification set passed on 2026-08-05 after the search and result exploration slice. The backend suite contains 32 passing tests.
 
 Do not open the frontend or launch a browser during verification. The user performs visual inspection.
 
@@ -336,6 +351,7 @@ Do not open the frontend or launch a browser during verification. The user perfo
 - `backend/OceanIntelligence.Api/Models/VesselDetailsResponse.cs`
 - `backend/OceanIntelligence.Api/Services/GlobalFishingWatch/Models/GfwRegistryExtraFieldsJsonConverter.cs`
 - `frontend/src/App.tsx`
+- `frontend/src/components/VesselTrafficSearchForm.tsx`
 - `frontend/src/components/VesselTrafficResults.tsx`
 - `frontend/src/components/VesselDetailsPanel.tsx`
 - `frontend/src/components/vessel-details/VesselResearchDossier.tsx`

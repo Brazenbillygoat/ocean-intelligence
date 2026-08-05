@@ -133,8 +133,17 @@ form button:disabled {
 .results-layout--with-details {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(340px, 0.95fr);
+  grid-template-areas: "results details";
   gap: 1.25rem;
   align-items: start;
+}
+
+.results-region {
+  grid-area: results;
+}
+
+.details-region {
+  grid-area: details;
 }
 
 .vessel-results-list {
@@ -148,6 +157,96 @@ form button:disabled {
 
 .results-layout--with-details .vessel-results-list {
   grid-template-columns: 1fr;
+}
+
+.search-status {
+  margin: 2rem 0 0;
+  padding: 1rem;
+  border: 1px solid #29434d;
+  border-radius: 0.5rem;
+  color: #b8d0d7;
+  background: #0c2029;
+}
+
+.results-update-status {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid #7ec0d0;
+  color: #cfe7ee;
+  background: #0d2731;
+}
+
+.results-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0 0 1.25rem;
+  padding: 1rem;
+  border: 1px solid #29434d;
+  border-radius: 0.5rem;
+  background: #0c2029;
+}
+
+.results-controls legend {
+  grid-column: 1 / -1;
+  padding: 0 0.5rem;
+  color: #9edce8;
+  font-weight: 700;
+}
+
+.results-controls__field {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.results-controls__label {
+  color: #b6ccd4;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.results-controls input,
+.results-controls select {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #3c5964;
+  border-radius: 0.4rem;
+  color: #edf9fc;
+  background: #07171e;
+}
+
+.results-controls input:focus,
+.results-controls select:focus {
+  border-color: #25b6ce;
+  outline: 3px solid rgb(37 182 206 / 20%);
+}
+
+.results-controls:disabled {
+  opacity: 0.65;
+}
+
+.results-controls:disabled input,
+.results-controls:disabled select {
+  cursor: not-allowed;
+}
+
+.results-count {
+  margin: 0 0 1rem;
+  color: #9fb9c2;
+  font-size: 0.92rem;
+}
+
+.results-empty-filters {
+  color: #91abb4;
+}
+
+.results-show-more {
+  margin-top: 1.25rem;
+}
+
+.results-show-more:disabled {
+  opacity: 0.65;
 }
 
 .vessel-card {
@@ -228,6 +327,7 @@ form button:disabled {
 
 .vessel-details-panel__header {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   align-items: start;
   justify-content: space-between;
@@ -235,6 +335,20 @@ form button:disabled {
 
 .vessel-details-panel__header > div {
   min-width: 0;
+}
+
+.vessel-details-panel__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: end;
+  gap: 0.5rem;
+}
+
+.vessel-details-panel__time-mode {
+  color: #9ae6f2;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .vessel-details-panel__header h2 {
@@ -304,6 +418,11 @@ form button:disabled {
   color: #86a7b1;
 }
 
+.presence-summary .detail-grid {
+  grid-template-columns: 1fr;
+  margin-top: 0.4rem;
+}
+
 .vessel-details-panel__status,
 .vessel-details-panel__empty {
   color: #91abb4;
@@ -369,6 +488,12 @@ form button:disabled {
   margin: 0.85rem 0 0;
   color: #9bb5be;
   font-size: 0.88rem;
+}
+
+.source-data-warning {
+  margin: 0.5rem 0 0;
+  color: #e2c984;
+  font-size: 0.82rem;
 }
 
 .record-badge {
@@ -649,6 +774,9 @@ form button:disabled {
 @media (max-width: 940px) {
   .results-layout--with-details {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "details"
+      "results";
   }
 
   .results-layout--with-details .vessel-results-list {
