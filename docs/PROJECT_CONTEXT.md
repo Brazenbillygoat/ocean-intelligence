@@ -1,6 +1,6 @@
 # Ocean Intelligence project context
 
-Last verified against the repository: 2026-08-05
+Last verified against the repository: 2026-08-11
 
 This file is the durable engineering handoff for future development sessions.
 Read it with `AGENTS.md` before proposing or implementing work. If
@@ -41,6 +41,8 @@ Implemented:
 - Per-IP rate limiting with separate area-search and vessel-detail policies.
 - Problem Details responses for known upstream failures.
 - Tests for validation, mapping, client requests, caching, concurrency, rate limiting, error handling, and irregular registry JSON.
+- Optional explicit `Use my location` button that requests browser geolocation only after a user action and populates an approximate 25 nautical mile rectangular search area without starting a search.
+- Pure TypeScript bounding-box calculation helper with dependency-free deterministic Node test runner coverage.
 - Public README, strengthened dotenv ignore rules, and repository line-ending policy.
 
 Not implemented:
@@ -49,7 +51,7 @@ Not implemented:
 - Public deployment configuration.
 - Database or distributed cache.
 - Server-side result pagination. Filtering, sorting, and progressive disclosure are local browser operations over the complete cached report. API pagination is deferred until measured response size or upstream support justifies it.
-- Live location, automatic tracks, maps, routing, or "What's near me?"
+- Live location, automatic tracks, maps, or routing. The first "What's near me?" slice is implemented as an explicit geolocation-populated 25 nautical mile rectangular search area.
 - Reviewed vessel imagery, external research enrichment, approved research notes, or sourced general-reference content.
 - GitHub Actions.
 
@@ -193,6 +195,8 @@ Selecting another vessel aborts the previous detail request and moves focus to t
 
 `VesselTrafficSearchForm.tsx` calculates dynamic search date defaults once on mount: a seven-day historical window ending five calendar days before the current local date, formatted as local calendar dates without UTC conversion.
 
+The four coordinate inputs use controlled string state so geolocation can populate them and users can still type partial numeric values. A `Use my location` button requests `navigator.geolocation.getCurrentPosition` only from an explicit `type="button"` click handler with `enableHighAccuracy: false`, `timeout: 10000`, and `maximumAge: 300000`. On success, a pure helper in `frontend/src/utils/geographicBounds.ts` converts the reported position into a 25 nautical mile rectangular bounding box. The helper rejects boxes that reach or cross a pole or the international date line, and returns a discriminated success or failure result so calculation errors never leak into React as uncaught exceptions. The populated region is described as an approximate rectangular search area, not a true circular radius. The button does not submit the form or call any API. Manual bounds remain available when geolocation is unavailable, denied, times out, returns invalid coordinates, or cannot be represented by the existing bounding-box contract. No raw position, coordinate, permission state, or location error is stored in browser storage, cookies, or logs.
+
 `VesselTrafficResults.tsx` fetches one complete report and then filters, sorts, and progressively reveals it locally. Text search covers name, MMSI, IMO, and callsign. Flag and vessel-type filters are derived from nonempty values in the complete response. Two sort modes use sampled AIS hours or vessel name, with vessel ID as the deterministic tie-breaker. The first 50 matching vessels render, with a `Show 50 more` action. Matching and total counts stay visible. A new report resets the controls and visible count. No filter, sort, or `Show more` action makes an HTTP request. The selected vessel and its detail panel persist even when a filter hides the card.
 
 `VesselDetailsPanel.tsx` merges the area-search summary with the detail response. Non-empty search values remain authoritative when a detailed record is empty. The panel presents historical presence context, identities, registry specifications, classifications, attribution, and caveats. A panel-wide toggle switches every presence, identity, and registry timestamp between UTC (default) and the browser's local time zone; separate first and last observation fields replace combined ranges, and reversed parseable periods show a source-data warning.
@@ -306,17 +310,17 @@ Initial hosting options discussed, but not selected:
 
 Use `IMemoryCache` for the first single-instance deployment. Redis is premature until multiple API instances need a shared cache, shared rate counters, or distributed coordination.
 
-## Recommended next slice
+## Implemented nearby-search slice
 
-The next product slice is the first "What's near me?" experience:
+The first "What's near me?" slice is implemented:
 
-1. Request browser geolocation only after an explicit user action.
-2. Choose a sensible default radius and historical date range.
-3. Convert the location and radius into the existing area-search contract.
-4. Keep the current geographic and date controls available as advanced search.
-5. Preserve all historical-AIS caveats and avoid live-location claims.
+1. Browser geolocation is requested only after an explicit user action.
+2. A fixed 25 nautical mile radius and the existing dynamic seven-day historical date window are used.
+3. The location and radius are converted into the existing area-search bounding-box contract.
+4. The current geographic and date controls remain available as advanced manual search.
+5. All historical-AIS caveats are preserved and no live-location claims are made.
 
-Do not add a map or automatic vessel tracks as part of the first slice.
+No map or automatic vessel tracks were added as part of this slice.
 
 ## Verification
 
@@ -324,6 +328,7 @@ Full repository verification:
 
 ```powershell
 cd frontend
+npm.cmd run test:nearby
 npm.cmd run lint
 npm.cmd run build
 cd ..
@@ -332,7 +337,7 @@ dotnet format OceanIntelligence.slnx --verify-no-changes --no-restore
 git diff --check
 ```
 
-The full verification set passed on 2026-08-05 after the search and result exploration slice. The backend suite contains 32 passing tests.
+The full verification set passed on 2026-08-11 after the nearby-search slice. The frontend nearby-search test suite contains 22 passing tests. The backend suite contains 32 passing tests.
 
 Do not open the frontend or launch a browser during verification. The user performs visual inspection.
 
@@ -359,4 +364,6 @@ Do not open the frontend or launch a browser during verification. The user perfo
 - `frontend/src/types/vesselResearch.ts`
 - `frontend/src/api/vesselTrafficApi.ts`
 - `frontend/src/api/vesselDetailsApi.ts`
+- `frontend/src/utils/geographicBounds.ts`
+- `frontend/tests/geographicBounds.test.ts`
 - `tests/OceanIntelligence.Api.Tests`
