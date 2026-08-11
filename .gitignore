@@ -298,6 +298,9 @@ FakesAssemblies/
 .ntvs_analysis.dat
 node_modules/
 
+# Frontend deterministic test compilation output
+frontend/.test-dist/
+
 # Visual Studio 6 build log
 *.plg
 

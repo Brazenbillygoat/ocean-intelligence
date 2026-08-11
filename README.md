@@ -19,6 +19,7 @@ The application works with historical AIS observations. It does not provide live
 - Preserve useful area-search values when detailed records contain empty fields.
 - Cache vessel details in browser state to avoid repeated requests during a session.
 - Display Global Fishing Watch attribution and relevant maritime-data caveats.
+- Optional `Use my location` button that populates an approximate 25 nautical mile rectangular search area from browser geolocation.
 - Return consistent API errors using ASP.NET Core Problem Details.
 
 ## Current stack
@@ -112,6 +113,16 @@ npm run dev
 
 The Vite development server proxies relative `/api` requests to the local ASP.NET Core API.
 
+## Nearby search
+
+The search form includes an optional `Use my location` button. Activating it requests browser geolocation and populates the four coordinate fields with an approximate 25 nautical mile rectangular search area centered on the reported position.
+
+The button does not submit the form or start a search. After location succeeds, review the populated bounds and date range, then use `Search vessels` as usual.
+
+The populated region is an approximate rectangle, not a true circle. It uses a fixed 25 nautical mile radius and the existing bounding-box area-search API. The application does not provide live vessel location, and the populated coordinates describe a historical AIS search area, not a current position.
+
+If browser location is unavailable, denied, times out, or returns coordinates too close to a pole or the international date line, the coordinate fields are left unchanged and manual bounds remain available. No location data is stored in browser storage, cookies, or logs.
+
 ## API endpoints
 
 ### Search vessel traffic
@@ -192,6 +203,7 @@ Run frontend checks:
 
 ```powershell
 cd frontend
+npm run test:nearby
 npm run lint
 npm run build
 ```
