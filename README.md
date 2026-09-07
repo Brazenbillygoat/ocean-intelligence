@@ -44,12 +44,15 @@ ocean-intelligence/
 |       |-- Controllers/                 HTTP endpoints
 |       |-- ErrorHandling/               External-service error mapping
 |       |-- Models/                      Public API contracts
+|       |-- Protection/                  Rate-limit policies and protection options
 |       `-- Services/GlobalFishingWatch/ GFW client and upstream models
 |-- frontend/
-|   `-- src/
-|       |-- api/                         Typed browser API clients
-|       |-- components/                  Search, results, and detail UI
-|       `-- types/                       Frontend API contracts
+|   |-- src/
+|   |   |-- api/                         Typed browser API clients
+|   |   |-- components/                  Search, results, and detail UI
+|   |   |-- hooks/                       Vessel-search request and result state
+|   |   `-- types/                       Frontend API contracts
+|   `-- tests/                          Nearby-search and vessel-search checks
 |-- tests/
 |   `-- OceanIntelligence.Api.Tests/     Controller, client, mapping, and error tests
 `-- OceanIntelligence.slnx

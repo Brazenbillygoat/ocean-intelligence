@@ -53,6 +53,7 @@ cd frontend
 npm.cmd run lint
 npm.cmd run build
 npm.cmd run test:nearby
+npm.cmd run test:vessel-search
 cd ..
 dotnet test OceanIntelligence.slnx
 dotnet format OceanIntelligence.slnx --verify-no-changes --no-restore

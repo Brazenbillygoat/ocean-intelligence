@@ -5,10 +5,11 @@ Last reviewed against the repository: 2026-09-07
 ## Product and current capabilities
 
 Ocean Intelligence is a full-stack vessel research application. It searches
-Global Fishing Watch for vessels historically observed within an area and date
-range, then presents identity, registry, specification, classification, and
-research context for a selected vessel. It does not provide live locations or
-continuous tracks.
+Global Fishing Watch by vessel name or identifier, or for vessels historically
+observed within an area and date range. Both modes present identity, registry,
+specification, classification, and research context for a selected vessel.
+Area-presence evidence appears only when the selection comes from an area
+report. The application does not provide live locations or continuous tracks.
 
 Implemented behavior includes:
 
