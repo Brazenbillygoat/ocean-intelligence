@@ -2,6 +2,51 @@
   min-height: 100vh;
 }
 
+.search-mode[hidden] {
+  display: none;
+}
+
+.search-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.search-modes button[aria-pressed="true"] {
+  border-color: #39c6dd;
+  color: #ecfbff;
+  background: #164352;
+}
+
+.vessel-search-card {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid #29434d;
+  border-radius: 0.5rem;
+  background: #0c2029;
+  overflow-wrap: anywhere;
+}
+
+.vessel-search-card h3 {
+  margin-top: 0;
+}
+
+.vessel-search-evidence {
+  margin: 1rem 0;
+}
+
+.vessel-search-evidence summary {
+  cursor: pointer;
+}
+
+.vessel-search-evidence li + li {
+  margin-top: 1rem;
+}
+
+.load-more {
+  margin-top: 1rem;
+}
+
 main {
   width: min(1120px, calc(100% - 2rem));
   margin: 0 auto;

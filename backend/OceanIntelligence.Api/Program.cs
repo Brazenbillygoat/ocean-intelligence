@@ -91,7 +91,8 @@ builder.Services.AddRateLimiter(options =>
 });
 
 // Register a managed HttpClient and allow the GFW client to be constructor-injected.
-builder.Services.AddHttpClient<GlobalFishingWatchClient>();
+// Default HttpClient logs include request URIs, which would retain vessel search queries.
+builder.Services.AddHttpClient<GlobalFishingWatchClient>().RemoveAllLoggers();
 builder.Services
     .AddSingleton<GlobalFishingWatchRequestCoordinator>();
 builder.Services.AddScoped<GlobalFishingWatchDataService>();

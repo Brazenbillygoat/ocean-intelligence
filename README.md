@@ -1,12 +1,15 @@
 # Ocean Intelligence
 
-Ocean Intelligence is a full-stack vessel research application built with ASP.NET Core, React, and TypeScript. It searches Global Fishing Watch data for vessels observed within a geographic area and date range, then provides a deeper identity and registry view for a selected vessel.
+Ocean Intelligence is a full-stack vessel research application built with ASP.NET Core, React, and TypeScript. It searches Global Fishing Watch by vessel identity or by historical presence within an area and date range, then provides a deeper identity and registry view for a selected vessel.
 
 The application works with historical AIS observations. It does not provide live vessel positions, continuous tracking, or proof that a vessel remained inside an area for an entire reported period.
 
 ## Features
 
 - Search a geographic bounding box and date range for observed vessel traffic.
+- Find a vessel directly by name, MMSI, IMO, or callsign without generating an area report.
+- Retain inputs, filters, and completed results in each search mode during the page session.
+- Review identity matches, matching evidence, and observation dates; use `Load more` for additional provider pages.
 - Search dates default to a dynamic seven-day historical window ending five days ago.
 - Filter results by vessel name, MMSI, IMO, or callsign, plus flag and vessel type.
 - Sort results by sampled AIS hours or vessel name, with a deterministic tie-breaker.
@@ -55,7 +58,7 @@ ocean-intelligence/
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Node.js `20.19+` or `22.12+`
+- Node.js `22.22.2+` (22.x), `24.15+` (24.x), or `26+` for the frontend and its Vitest/jsdom checks
 - npm
 - A [Global Fishing Watch](https://globalfishingwatch.org/our-apis/documentation) account and API access token
 - Git
@@ -154,6 +157,24 @@ The response contains the accepted query, result count, and vessels with identit
 
 The frontend fetches one complete report and then filters, sorts, and progressively reveals it locally. It shows 50 matching vessels first and adds 50 per `Show 50 more` action. No filtering, sorting, or `Show more` action makes an API request.
 
+### Find a vessel
+
+```http
+GET /api/vessels/search?query=MISS%20FREYA
+```
+
+`query` accepts 3-100 characters after trimming. The optional `cursor` is an opaque continuation value: send the previous response's `nextCursor` unchanged with the same query. A null `nextCursor` means there are no more pages.
+
+The response contains the accepted `query`, normalized `matches`, `nextCursor`, dataset, attribution, and caveats. Each match has a stable `matchKey`, a nullable `vesselId`, names/identifiers/flag, record observation dates, and source-labeled matching evidence. Select a usable `vesselId` to request details; records without one remain visibly unavailable.
+
+Lookup follows the [GFW vessel-search contract](https://globalfishingwatch.org/our-apis/documentation/docs/v3/vessels/search) using the public vessel-identity dataset, `MATCH_CRITERIA`, 30 provider entries per request, and the endpoint's `since` continuation token. A provider entry can contain multiple AIS identities. These remain separate in provider order even when they share an MMSI or name; duplicate identity keys are suppressed across loaded pages. Loaded identity counts are not verified counts of physical vessels. Matching evidence is labeled as result-group evidence because it can refer to another identity or registry record.
+
+Successful lookup pages cache on the server for 30 minutes, keyed separately by query, dataset, and cursor. Lookup and details share the existing 60 requests/minute/client-IP budget. Failures and canceled lookups are not cached. Area protections remain independent.
+
+The frontend submits only through `Search` and `Load more`. Replacements retain old results until success; errors identify the failed query, and pagination can be retried without losing matches. Mode changes cancel outstanding API requests and close details; returning makes no automatic request. Direct dossiers explicitly omit area-presence hours, entry/exit observations, and geographic/date report context. Identity/registry sections, research placeholders, attribution, caveats, and the UTC/local-time toggle remain available.
+
+Search state stays in page memory, without persistent search history. Lookup responses use `Cache-Control: no-store` for clients. Default upstream HTTP URI logging is disabled to avoid retaining search queries; the GFW token stays server-only.
+
 ### Get vessel details
 
 ```http
@@ -204,6 +225,7 @@ Run frontend checks:
 ```powershell
 cd frontend
 npm run test:nearby
+npm run test:vessel-search
 npm run lint
 npm run build
 ```
@@ -215,7 +237,7 @@ dotnet test OceanIntelligence.slnx
 dotnet format OceanIntelligence.slnx --verify-no-changes --no-restore
 ```
 
-Backend tests use in-memory HTTP handlers and do not call the live Global Fishing Watch API.
+Backend tests use in-memory HTTP handlers and do not call the live Global Fishing Watch API. The vessel-search suite uses Vitest, jsdom, and React Testing Library with mocked fetch responses, including requests that settle after cancellation. Application startup, live data, and browser/visual acceptance remain owner checks.
 
 ## Security
 

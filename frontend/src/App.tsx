@@ -4,215 +4,212 @@ import { getVesselTraffic } from "./api/vesselTrafficApi";
 import { VesselDetailsPanel } from "./components/VesselDetailsPanel";
 import { VesselTrafficResults } from "./components/VesselTrafficResults";
 import { VesselTrafficSearchForm } from "./components/VesselTrafficSearchForm";
+import { VesselSearchForm } from "./components/VesselSearchForm";
+import { VesselSearchResults } from "./components/VesselSearchResults";
+import { useVesselSearch } from "./hooks/useVesselSearch";
 import type { VesselDetailsResponse } from "./types/vesselDetails";
-import type {
-  VesselTrafficQuery,
-  VesselTrafficResponse,
-  VesselTrafficVessel,
-} from "./types/vesselTraffic";
+import type { VesselAreaContext, VesselIdentitySummary, VesselSearchMatch } from "./types/vesselSearch";
+import type { VesselTrafficQuery, VesselTrafficResponse, VesselTrafficVessel } from "./types/vesselTraffic";
 import "./App.css";
 
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError";
+type SearchMode = "area" | "vessel";
+interface Selection {
+  summary: VesselIdentitySummary;
+  areaContext: VesselAreaContext | null;
 }
 
 function App() {
+  const [mode, setMode] = useState<SearchMode>("area");
   const [results, setResults] = useState<VesselTrafficResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedVessel, setSelectedVessel] =
-    useState<VesselTrafficVessel | null>(null);
-  const [detailsByVesselId, setDetailsByVesselId] = useState<
-    Record<string, VesselDetailsResponse>
-  >({});
-  const [detailsLoadingVesselId, setDetailsLoadingVesselId] = useState<
-    string | null
-  >(null);
+  const areaRequest = useRef<AbortController | null>(null);
+  const lookup = useVesselSearch();
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [detailsByVesselId, setDetailsByVesselId] = useState(
+    () => new Map<string, VesselDetailsResponse>(),
+  );
+  const [detailsLoadingVesselId, setDetailsLoadingVesselId] = useState<string | null>(null);
   const [detailsError, setDetailsError] = useState<string | null>(null);
-  const detailsAbortController = useRef<AbortController | null>(null);
-  // The vessel card button that opened the detail panel is retained so Close can
-  // restore keyboard focus to it. A new area search does not restore focus.
+  const detailsRequest = useRef<AbortController | null>(null);
   const activatingVesselButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  useEffect(() => {
-    return () => detailsAbortController.current?.abort();
+  useEffect(() => () => {
+    areaRequest.current?.abort();
+    areaRequest.current = null;
+    detailsRequest.current?.abort();
+    detailsRequest.current = null;
   }, []);
 
-  async function handleSearch(query: VesselTrafficQuery) {
-    // Capture the prior report before any state changes so a replacement
-    // search can keep it visible and identify it by its date range on failure.
-    const priorResults = results;
-    const isReplacement = priorResults !== null;
-
-    detailsAbortController.current?.abort();
-    detailsAbortController.current = null;
-    setSelectedVessel(null);
+  function clearDetails() {
+    detailsRequest.current?.abort();
+    detailsRequest.current = null;
+    setSelection(null);
     setDetailsLoadingVesselId(null);
     setDetailsError(null);
+    activatingVesselButtonRef.current = null;
+  }
+
+  function changeMode(next: SearchMode) {
+    if (mode === next) return;
+    areaRequest.current?.abort();
+    areaRequest.current = null;
+    setIsLoading(false);
+    lookup.cancel();
+    clearDetails();
+    setMode(next);
+  }
+
+  async function handleSearch(query: VesselTrafficQuery) {
+    const prior = results;
+    areaRequest.current?.abort();
+    const controller = new AbortController();
+    areaRequest.current = controller;
+    clearDetails();
     setIsLoading(true);
     setError(null);
-
-    // An initial search clears the empty/loading state. A replacement keeps the
-    // previous results visible until the new request succeeds.
-    if (!isReplacement) {
-      setResults(null);
-    }
-
     try {
-      const response = await getVesselTraffic(query);
+      const response = await getVesselTraffic(query, controller.signal);
+      if (areaRequest.current !== controller) return;
       setResults(response);
-      setError(null);
-    } catch (requestError) {
-      // JavaScript allows any value to be thrown, so we check for Error before reading its message.
-      const message =
-        requestError instanceof Error
-          ? requestError.message
-          : "An unexpected error occurred.";
-
-      if (isReplacement) {
-        // Keep the prior report and label it by its date range so users do not
-        // mistake it for the failed query.
-        setError(
-          `${message} Previous results from ${priorResults.query.startDate} to ${priorResults.query.endDate} remain visible.`,
-        );
-      } else {
-        setError(message);
-        setResults(null);
-      }
+    } catch (failure) {
+      if (areaRequest.current !== controller || controller.signal.aborted) return;
+      const message = failure instanceof Error ? failure.message : "An unexpected error occurred.";
+      setError(`Area search for ${query.startDate} to ${query.endDate} (${query.west}, ${query.south} to ${query.east}, ${query.north}) failed. ${message}${prior ? ` Previous results from ${prior.query.startDate} to ${prior.query.endDate} remain visible.` : ""}`);
     } finally {
-      // finally runs after either success or failure, ensuring the form never remains permanently disabled.
-      setIsLoading(false);
+      if (areaRequest.current === controller) {
+        areaRequest.current = null;
+        setIsLoading(false);
+      }
     }
   }
 
-  async function handleVesselSelect(
-    vessel: VesselTrafficVessel,
-    activatingButton?: HTMLButtonElement,
-  ) {
-    if (activatingButton) {
-      activatingVesselButtonRef.current = activatingButton;
-    }
-
-    detailsAbortController.current?.abort();
-    detailsAbortController.current = null;
-    setSelectedVessel(vessel);
+  async function selectVessel(next: Selection, activatingButton?: HTMLButtonElement) {
+    if (activatingButton) activatingVesselButtonRef.current = activatingButton;
+    detailsRequest.current?.abort();
+    detailsRequest.current = null;
+    setSelection(next);
     setDetailsError(null);
-
-    // The cache is keyed by GFW vessel ID so reopening a vessel does not repeat the identity request during this browser session.
-    if (detailsByVesselId[vessel.vesselId]) {
+    const vesselId = next.summary.vesselId;
+    if (detailsByVesselId.has(vesselId)) {
       setDetailsLoadingVesselId(null);
       return;
     }
-
     const controller = new AbortController();
-    detailsAbortController.current = controller;
-    setDetailsLoadingVesselId(vessel.vesselId);
-
+    detailsRequest.current = controller;
+    setDetailsLoadingVesselId(vesselId);
     try {
-      const details = await getVesselDetails(vessel.vesselId, controller.signal);
-      setDetailsByVesselId((current) => ({
-        ...current,
-        [vessel.vesselId]: details,
-      }));
-    } catch (requestError) {
-      if (
-        !isAbortError(requestError) &&
-        detailsAbortController.current === controller
-      ) {
-        const message =
-          requestError instanceof Error
-            ? requestError.message
-            : "An unexpected error occurred while loading vessel details.";
-
-        setDetailsError(message);
-      }
+      const details = await getVesselDetails(vesselId, controller.signal);
+      if (detailsRequest.current !== controller) return;
+      setDetailsByVesselId((current) => new Map(current).set(vesselId, details));
+    } catch (failure) {
+      if (detailsRequest.current !== controller || controller.signal.aborted) return;
+      setDetailsError(failure instanceof Error ? failure.message : "An unexpected error occurred while loading vessel details.");
     } finally {
-      // Only the active request may clear loading state because a user can select another vessel before an earlier request settles.
-      if (detailsAbortController.current === controller) {
-        detailsAbortController.current = null;
+      if (detailsRequest.current === controller) {
+        detailsRequest.current = null;
         setDetailsLoadingVesselId(null);
       }
     }
   }
 
-  function handleCloseDetails() {
-    detailsAbortController.current?.abort();
-    detailsAbortController.current = null;
-    setSelectedVessel(null);
-    setDetailsLoadingVesselId(null);
-    setDetailsError(null);
-
-    // Restore focus to the card that opened the panel only if it is still in
-    // the document. A filtered-out or replaced card cannot receive focus.
-    const activatingButton = activatingVesselButtonRef.current;
-    activatingVesselButtonRef.current = null;
-
-    if (activatingButton && document.contains(activatingButton)) {
-      activatingButton.focus();
-    }
+  function selectAreaVessel(vessel: VesselTrafficVessel, button: HTMLButtonElement) {
+    if (!results) return;
+    void selectVessel({
+      summary: vessel,
+      areaContext: {
+        query: results.query,
+        presenceHours: vessel.presenceHours,
+        enteredAt: vessel.enteredAt,
+        exitedAt: vessel.exitedAt,
+      },
+    }, button);
   }
 
-  const selectedDetails = selectedVessel
-    ? (detailsByVesselId[selectedVessel.vesselId] ?? null)
-    : null;
+  function selectLookupMatch(match: VesselSearchMatch, button: HTMLButtonElement) {
+    if (!match.vesselId) return;
+    void selectVessel({
+      summary: { ...match, vesselId: match.vesselId, vesselType: "", gearType: "" },
+      areaContext: null,
+    }, button);
+  }
+
+  function closeDetails() {
+    const button = activatingVesselButtonRef.current;
+    clearDetails();
+    if (button && document.contains(button)) button.focus();
+  }
+
+  const panel = selection && (
+    <VesselDetailsPanel
+      summary={selection.summary}
+      areaContext={selection.areaContext}
+      details={detailsByVesselId.get(selection.summary.vesselId) ?? null}
+      isLoading={detailsLoadingVesselId === selection.summary.vesselId}
+      error={detailsError}
+      onRetry={() => void selectVessel(selection)}
+      onClose={closeDetails}
+    />
+  );
+  const layout = selection ? "results-layout results-layout--with-details" : "results-layout";
 
   return (
     <main>
       <header>
         <h1>Ocean Intelligence</h1>
-        <p>
-          Search for AIS reporting vessels observed within an area and date
-          range.
-        </p>
+        <p>Research vessel identities or explore historical AIS presence within an area and date range.</p>
       </header>
+      <div className="search-modes" role="group" aria-label="Search mode">
+        <button type="button" className="secondary-button" aria-pressed={mode === "area"}
+          onClick={() => changeMode("area")}>Search an area</button>
+        <button type="button" className="secondary-button" aria-pressed={mode === "vessel"}
+          onClick={() => changeMode("vessel")}>Find a vessel</button>
+      </div>
 
-      <section aria-labelledby="search-heading">
-        <h2 id="search-heading">Vessel traffic search</h2>
+      {/* Keep both mode trees mounted so native date inputs, filters and completed
+          results survive switching. Hidden content cannot receive keyboard focus. */}
+      <div className="search-mode" hidden={mode !== "area"}>
+        <section aria-labelledby="search-heading">
+          <h2 id="search-heading">Vessel traffic search</h2>
+          <VesselTrafficSearchForm isLoading={isLoading} onSearch={handleSearch} />
+        </section>
+        {error && <p role="alert">{error}</p>}
+        {isLoading && !results && <p className="search-status" role="status">Generating the area report. This may take a moment.</p>}
+        {results && (
+          <div className={layout}>
+            <VesselTrafficResults results={results}
+              selectedVesselId={selection?.summary.vesselId ?? null}
+              onSelectVessel={selectAreaVessel} isUpdating={isLoading} />
+            {mode === "area" && panel}
+          </div>
+        )}
+      </div>
 
-        <VesselTrafficSearchForm
-          isLoading={isLoading}
-          onSearch={handleSearch}
-        />
-      </section>
-
-      {error && <p role="alert">{error}</p>}
-
-      {isLoading && !results && (
-        <p className="search-status" role="status" aria-live="polite">
-          Generating the area report. This may take a moment.
-        </p>
-      )}
-
-      {results && (
-        <div
-          className={
-            selectedVessel
-              ? "results-layout results-layout--with-details"
-              : "results-layout"
-          }
-        >
-          <VesselTrafficResults
-            results={results}
-            selectedVesselId={selectedVessel?.vesselId ?? null}
-            onSelectVessel={handleVesselSelect}
-            isUpdating={isLoading}
-          />
-
-          {selectedVessel && (
-            <VesselDetailsPanel
-              summary={selectedVessel}
-              query={results.query}
-              details={selectedDetails}
-              isLoading={
-                detailsLoadingVesselId === selectedVessel.vesselId
-              }
-              error={detailsError}
-              onRetry={() => void handleVesselSelect(selectedVessel)}
-              onClose={handleCloseDetails}
-            />
-          )}
-        </div>
-      )}
+      <div className="search-mode" hidden={mode !== "vessel"}>
+        <section aria-labelledby="lookup-heading">
+          <h2 id="lookup-heading">Find a vessel</h2>
+          <VesselSearchForm onSearch={(query) => {
+            if (query.trim().length >= 3 && query.trim().length <= 100) clearDetails();
+            void lookup.search(query);
+          }} />
+        </section>
+        {lookup.error && <p role="alert">{lookup.error}</p>}
+        {lookup.pending && <p className="search-status" role="status">
+          {lookup.pending.append ? "Loading more matches" : "Searching"} for "{lookup.pending.query}".
+          {lookup.results && !lookup.pending.append ? ` Previous results for "${lookup.results.query}" remain visible until success.` : ""}
+        </p>}
+        {lookup.results && (
+          <div className={layout}>
+            <VesselSearchResults results={lookup.results}
+              selectedVesselId={selection?.summary.vesselId ?? null}
+              isLoading={lookup.pending !== null}
+              isReplacing={lookup.pending !== null && !lookup.pending.append}
+              onLoadMore={() => void lookup.search(lookup.results!.query, true)}
+              onSelect={selectLookupMatch} />
+            {mode === "vessel" && panel}
+          </div>
+        )}
+      </div>
     </main>
   );
 }

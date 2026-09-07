@@ -18,6 +18,32 @@ public sealed class VesselsController : ControllerBase
         _gfwDataService = gfwDataService;
     }
 
+    [HttpGet("search")]
+    [EnableRateLimiting(RateLimitPolicyNames.VesselDetails)]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<ActionResult<VesselSearchResponse>> Search(
+        [FromQuery] string? query, [FromQuery] string? cursor, CancellationToken cancellationToken)
+    {
+        string acceptedQuery = query?.Trim() ?? "";
+        if (acceptedQuery.Length is < 3 or > 100 || acceptedQuery.Any(char.IsControl))
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Invalid vessel search query.",
+                Detail = "Enter a name, MMSI, IMO, or callsign of 3-100 characters.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        if (cursor is not null && (string.IsNullOrWhiteSpace(cursor)
+            || cursor.Length > 2048 || cursor.Any(char.IsControl)))
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Invalid vessel search cursor.",
+                Detail = "Use the continuation cursor returned by the previous search page.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        var page = await _gfwDataService.SearchVesselsAsync(acceptedQuery, cursor, cancellationToken);
+        return Ok(VesselSearchMapper.Map(page, acceptedQuery));
+    }
+
     [HttpGet("{vesselId}")]
     [EnableRateLimiting(RateLimitPolicyNames.VesselDetails)]
     public async Task<ActionResult<VesselDetailsResponse>> GetById(

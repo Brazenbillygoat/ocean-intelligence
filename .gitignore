@@ -8,7 +8,7 @@
 .env.*
 !.env.example
 
-# Local Codex implementation handoff; keep temporary plans out of commits
+# Local implementation handoff; keep temporary plans out of commits
 docs/ACTIVE_PLAN.md
 
 # User-specific files

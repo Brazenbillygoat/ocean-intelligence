@@ -1,4 +1,6 @@
 using System.Net.Http.Headers;
+using System.Net;
+using System.Text.Json;
 using System.Net.Http.Json;
 using Microsoft.Extensions.Options;
 using OceanIntelligence.Api.Services.GlobalFishingWatch.Models;
@@ -7,6 +9,47 @@ namespace OceanIntelligence.Api.Services.GlobalFishingWatch;
 
 public sealed class GlobalFishingWatchClient
 {
+    internal const string VesselIdentityDataset = "public-global-vessel-identity:latest";
+
+    internal async Task<GfwVesselSearchResponse> SearchVesselsAsync(
+        string query, string? cursor, CancellationToken cancellationToken)
+    {
+        string uri = "/v3/vessels/search?limit=30"
+            + $"&datasets%5B0%5D={Uri.EscapeDataString(VesselIdentityDataset)}"
+            + "&includes%5B0%5D=MATCH_CRITERIA"
+            + $"&query={Uri.EscapeDataString(query)}";
+        if (cursor is not null) uri += $"&since={Uri.EscapeDataString(cursor)}";
+
+        try
+        {
+            using HttpResponseMessage response = await _httpClient.GetAsync(uri, cancellationToken);
+            if (!response.IsSuccessStatusCode) throw new GlobalFishingWatchException(response.StatusCode);
+            var page = await response.Content.ReadFromJsonAsync<GfwVesselSearchResponse>(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (page?.Entries is null || page.Entries.Any(entry => entry is null
+                || (entry.SelfReportedInfo?.Any(identity => identity is null) ?? false)
+                || (entry.RegistryInfo?.Any(identity => identity is null) ?? false)
+                || (entry.MatchCriteria?.Any(criterion => criterion is null
+                    || (criterion.Matches?.Any(match => match is null) ?? false)) ?? false))
+                || (page.Since is not null && (string.IsNullOrWhiteSpace(page.Since)
+                    || page.Since.Length > 2048 || page.Since.Any(char.IsControl) || page.Since == cursor)))
+                throw new GlobalFishingWatchException(HttpStatusCode.BadGateway);
+            return page;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new GlobalFishingWatchException(HttpStatusCode.GatewayTimeout);
+        }
+        catch (HttpRequestException)
+        {
+            throw new GlobalFishingWatchException(HttpStatusCode.BadGateway);
+        }
+        catch (JsonException)
+        {
+            throw new GlobalFishingWatchException(HttpStatusCode.BadGateway);
+        }
+    }
+
     // HttpClient is created and managed by ASP.NET's HttpClient factory.
     private readonly HttpClient _httpClient;
 

@@ -8,6 +8,20 @@ namespace OceanIntelligence.Api.Services.GlobalFishingWatch;
 
 public sealed class GlobalFishingWatchDataService
 {
+    internal async Task<GfwVesselSearchResponse> SearchVesselsAsync(
+        string query, string? cursor, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        // Tuple fields avoid ambiguous delimiter keys and retain opaque cursor/case semantics.
+        var key = ("gfw:search:v1", query, GlobalFishingWatchClient.VesselIdentityDataset, cursor);
+        if (_cache.TryGetValue(key, out GfwVesselSearchResponse? cached) && cached is not null)
+            return cached;
+        var page = await _client.SearchVesselsAsync(query, cursor, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        _cache.Set(key, page, TimeSpan.FromMinutes(30));
+        return page;
+    }
+
     private readonly GlobalFishingWatchClient _client;
     private readonly IMemoryCache _cache;
     private readonly ApiProtectionOptions _options;

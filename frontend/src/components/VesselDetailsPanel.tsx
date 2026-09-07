@@ -3,16 +3,13 @@ import type {
   VesselClassificationRecord,
   VesselDetailsResponse,
 } from "../types/vesselDetails";
-import type {
-  VesselTrafficQuery,
-  VesselTrafficVessel,
-} from "../types/vesselTraffic";
+import type { VesselAreaContext, VesselIdentitySummary } from "../types/vesselSearch";
 import { DossierSection } from "./vessel-details/DossierSection";
 import { VesselResearchDossier } from "./vessel-details/VesselResearchDossier";
 
 interface VesselDetailsPanelProps {
-  summary: VesselTrafficVessel;
-  query: VesselTrafficQuery;
+  summary: VesselIdentitySummary;
+  areaContext: VesselAreaContext | null;
   details: VesselDetailsResponse | null;
   isLoading: boolean;
   error: string | null;
@@ -179,7 +176,7 @@ function SourceDataWarning() {
 
 export function VesselDetailsPanel({
   summary,
-  query,
+  areaContext,
   details,
   isLoading,
   error,
@@ -203,7 +200,8 @@ export function VesselDetailsPanel({
     headingRef.current?.focus();
   }, [summary.vesselId]);
 
-  const primaryIdentity = details?.aisIdentities[0];
+  const primaryIdentity = details?.aisIdentities.find((identity) => identity.vesselId === summary.vesselId)
+    ?? details?.aisIdentities[0];
   const primaryRegistry =
     details?.registryRecords.find((record) => record.isLatestRecord) ??
     details?.registryRecords[0];
@@ -299,23 +297,26 @@ export function VesselDetailsPanel({
             <DetailItem label="Callsign" value={callsign} />
           </dl>
 
-          <div className="presence-summary">
-            <strong>{summary.presenceHours.toLocaleString()} sampled AIS hours</strong>
+          {areaContext ? <div className="presence-summary">
+            <strong>{areaContext.presenceHours.toLocaleString()} sampled AIS hours</strong>
             <dl className="detail-grid">
               <DetailItem
                 label="First observed in searched area"
-                value={formatTimestamp(summary.enteredAt, timeMode)}
+                value={formatTimestamp(areaContext.enteredAt, timeMode)}
               />
               <DetailItem
                 label="Last observed in searched area"
-                value={formatTimestamp(summary.exitedAt, timeMode)}
+                value={formatTimestamp(areaContext.exitedAt, timeMode)}
               />
             </dl>
-            {isReversedRange(summary.enteredAt, summary.exitedAt) && (
+            {isReversedRange(areaContext.enteredAt, areaContext.exitedAt) && (
               <SourceDataWarning />
             )}
             <small>Historical AIS presence in the searched area, not a live vessel position.</small>
-          </div>
+          </div> : <p className="presence-summary">
+            Direct vessel lookup: no area report is attached. Area-presence hours
+            and entry/exit observations are unavailable. This is not a current vessel location.
+          </p>}
         </DossierSection>
 
         <DossierSection
@@ -510,7 +511,7 @@ export function VesselDetailsPanel({
           )}
         </DossierSection>
 
-        <VesselResearchDossier query={query} />
+        <VesselResearchDossier query={areaContext?.query ?? null} />
 
         <DossierSection
           id="sources-caveats"
