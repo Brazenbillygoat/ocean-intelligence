@@ -4,7 +4,7 @@ import { DossierSection } from "./DossierSection";
 import { ResearchPlaceholderCard } from "./ResearchPlaceholderCard";
 
 interface VesselResearchDossierProps {
-  query: VesselTrafficQuery;
+  query: VesselTrafficQuery | null;
 }
 
 function formatCoordinate(value: number): string {
@@ -26,7 +26,7 @@ export function VesselResearchDossier({
         >
           <p className="dossier-section__description">{section.description}</p>
 
-          {section.id === "regional-context" && (
+          {section.id === "regional-context" && query && (
             <div className="search-context">
               <h4>Completed search context</h4>
               <dl className="detail-grid">
@@ -56,6 +56,10 @@ export function VesselResearchDossier({
                 period. They are not a current vessel location.
               </p>
             </div>
+          )}
+
+          {section.id === "regional-context" && !query && (
+            <p className="search-context">No completed area search context is attached to this direct vessel lookup.</p>
           )}
 
           <div className="research-card-list">
